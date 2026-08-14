@@ -1,0 +1,81 @@
+:root {
+  --bg-start: #eef4ff;
+  --bg-end: #fdf2f8;
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --text: #1f2937;
+  --muted: #4b5563;
+  --accent: #7c3aed;
+  --accent-strong: #4f46e5;
+  --shadow: rgba(76, 29, 149, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+  background: linear-gradient(135deg, var(--bg-start), var(--bg-end));
+  color: var(--text);
+}
+
+main {
+  width: min(520px, 100%);
+  padding: 48px 40px;
+  border-radius: 24px;
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 20px 45px var(--shadow);
+  backdrop-filter: blur(6px);
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
+p {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+a {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(124, 58, 237, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+a:hover,
+a:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(79, 70, 229, 0.32);
+}
+
+@media (max-width: 480px) {
+  main {
+    padding: 36px 24px;
+    border-radius: 18px;
+  }
+
+  p {
+    font-size: 1rem;
+  }
+}
