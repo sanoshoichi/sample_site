@@ -73,9 +73,13 @@
     const addPersonBtn = document.getElementById('addPersonBtn');
     const addCandidateBtn = document.getElementById('addCandidateBtn');
 
+    function deepClone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
     function getState() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return structuredClone(defaultState);
+      if (!raw) return deepClone(defaultState);
 
       try {
         const parsed = JSON.parse(raw);
@@ -86,7 +90,7 @@
         // Ignore invalid state and fall back to defaults.
       }
 
-      return structuredClone(defaultState);
+      return deepClone(defaultState);
     }
 
     function saveState(state) {
