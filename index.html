@@ -267,7 +267,44 @@
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
+        // produce shareable URL
+        const url = new URL(window.location.href);
+        url.searchParams.set('schedule', id);
+        try {
+          navigator.clipboard.writeText(url.toString());
+          alert('共有URLをクリップボードにコピーしました: ' + url.toString());
+        } catch (e) {
+          alert('共有URL: ' + url.toString());
+        }
       });
+    }
+
+    function getScheduleIdFromUrl() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('schedule') || params.get('s') || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function applyScheduleFromUrl() {
+      const id = getScheduleIdFromUrl();
+      if (!id) return false;
+      const app = getAppState();
+      const exists = (app.schedules || []).some(s => s.id === id);
+      if (!exists) {
+        // create placeholder schedule with given id
+        app.schedules = app.schedules || [];
+        app.schedules.push({ id, title: `Shared ${id}`, payload: deepClone(defaultState) });
+      }
+      app.activeScheduleId = id;
+      saveAppState(app);
+
+      // hide schedule controls so participant cannot switch
+      const controls = document.querySelector('.schedule-controls');
+      if (controls) controls.style.display = 'none';
+      return true;
     }
 
     function deleteCurrentSchedule() {
@@ -686,6 +723,8 @@
         renderTable();
       });
     });
+    // apply schedule id from URL if present (participant link)
+    const forced = applyScheduleFromUrl();
     renderScheduleSelector();
     renderCandidateDates();
     renderTable();
