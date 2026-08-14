@@ -221,14 +221,26 @@ h2 {
   background: rgba(38, 33, 30, 0.96);
   color: var(--muted);
   font-weight: 700;
-  padding: 12px 10px;
-  min-width: 72px;
+  padding: 10px 8px;
+  min-width: 66px;
   text-align: center;
 }
 
 .schedule-table thead th:first-child {
   left: 0;
   z-index: 2;
+}
+
+.day-header {
+  background: rgba(44, 39, 35, 0.98);
+  color: var(--text);
+  min-width: 84px;
+}
+
+.time-header {
+  font-size: 0.72rem;
+  min-width: 64px;
+  padding: 8px 6px;
 }
 
 .name-col,
