@@ -353,11 +353,12 @@ h2 {
   left: 0;
   background: rgba(31, 28, 25, 0.98);
   color: var(--text);
-  min-width: 48px;
-  width: 48px;
+  min-width: 36px;
+  width: fit-content;
   text-align: center;
-  padding: 12px 6px;
+  padding: 12px 4px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .time-col,
