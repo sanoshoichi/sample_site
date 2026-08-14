@@ -50,7 +50,9 @@
 
   <script>
     const STORAGE_KEY = 'scheduleTableData';
-    const API_ENDPOINT = '/api/state';
+    const SUPABASE_URL = 'https://nwyfvlxjkonxpnkhuiuv.supabase.co/rest/v1/';
+    const SUPABASE_ANON_KEY = 'sb_publishable_kew3a0QTt7awm_saFyRj_A_Hgb6aQcq';
+    const SUPABASE_TABLE = 'schedule_state';
     const HOUR_START = 9;
     const HOUR_END = 20;
 
@@ -102,12 +104,30 @@
       return deepClone(defaultState);
     }
 
+    function getSupabaseHeaders() {
+      return {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json'
+      };
+    }
+
     async function syncStateFromServer() {
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('<anon public key>')) {
+        return;
+      }
+
       try {
-        const response = await fetch(API_ENDPOINT, { cache: 'no-store' });
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=payload&id=eq.1`, {
+          headers: getSupabaseHeaders(),
+          cache: 'no-store'
+        });
+
         if (!response.ok) return;
 
-        const remoteState = await response.json();
+        const rows = await response.json();
+        const remoteState = rows && rows[0] ? rows[0].payload : null;
+
         if (isValidState(remoteState)) {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
         }
@@ -119,13 +139,18 @@
     async function saveState(state) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('<anon public key>')) {
+        return;
+      }
+
       try {
-        await fetch(API_ENDPOINT, {
-          method: 'POST',
+        await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.1`, {
+          method: 'PATCH',
           headers: {
-            'Content-Type': 'application/json'
+            ...getSupabaseHeaders(),
+            Prefer: 'resolution=merge-duplicates'
           },
-          body: JSON.stringify(state)
+          body: JSON.stringify({ payload: state })
         });
       } catch (error) {
         // Ignore network issues and keep local fallback behavior.
