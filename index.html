@@ -304,6 +304,9 @@
       // hide schedule controls so participant cannot switch
       const controls = document.querySelector('.schedule-controls');
       if (controls) controls.style.display = 'none';
+      // hide admin navigation so participants can't jump to admin page
+      const adminBtn = document.querySelector('.nav-button[data-target="admin.html"]');
+      if (adminBtn) adminBtn.style.display = 'none';
       return true;
     }
 
