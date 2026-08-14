@@ -292,7 +292,7 @@
       renderCalendar();
     }
 
-    function renderHeader(slots) {
+    function renderHeader(state) {
       scheduleHead.innerHTML = '';
       const headerRow = document.createElement('tr');
       const timeLabelCell = document.createElement('th');
@@ -327,7 +327,7 @@
         return;
       }
 
-      renderHeader(slots);
+      renderHeader(state);
 
       slots.forEach((slot) => {
         const row = document.createElement('tr');
