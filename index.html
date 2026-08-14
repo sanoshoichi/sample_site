@@ -58,7 +58,7 @@
     const defaultState = {
       candidateDates: [],
       participantEntries: [
-        { name: 'TESTUSER', slots: [] }
+        { name: '', slots: [] }
       ],
       participantDraft: {}
     };
@@ -456,7 +456,7 @@
       renderTable();
     });
 
-    participantNameInput.value = 'TESTUSER';
+    participantNameInput.value = '';
     updateActionButtonState();
     syncStateFromServer();
     renderCandidateDates();
