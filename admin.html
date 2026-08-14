@@ -12,7 +12,7 @@
       <p class="eyebrow">Admin</p>
       <h1>管理者ページ</h1>
       <nav class="page-nav">
-        <a href="index.html">参加者ページへ</a>
+        <button type="button" class="nav-button" data-target="index.html">参加者ページへ</button>
       </nav>
     </header>
 
@@ -295,6 +295,15 @@
       renderCandidateDates();
       renderTable();
     }
+
+    document.querySelectorAll('.nav-button').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.target;
+        if (target) {
+          window.location.href = target;
+        }
+      });
+    });
 
     addCandidateBtn.addEventListener('click', addCandidateDate);
     candidateDateInput.addEventListener('keydown', (event) => {

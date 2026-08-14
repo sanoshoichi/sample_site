@@ -12,7 +12,7 @@
       <p class="eyebrow">Participant</p>
       <h1>参加者ページ</h1>
       <nav class="page-nav">
-        <button href="admin.html">管理者ページへ</button>
+        <button type="button" class="nav-button" data-target="admin.html">管理者ページへ</button>
       </nav>
     </header>
 
@@ -141,21 +141,48 @@
 
     function renderHeader(slots) {
       scheduleHead.innerHTML = '';
-      const row = document.createElement('tr');
 
+      const dateGroups = new Map();
+      const dateOrder = [];
+
+      slots.forEach((slot) => {
+        const dateKey = slot.id.slice(0, 10);
+        if (!dateGroups.has(dateKey)) {
+          dateGroups.set(dateKey, []);
+          dateOrder.push(dateKey);
+        }
+        dateGroups.get(dateKey).push(slot);
+      });
+
+      const dayRow = document.createElement('tr');
       const nameCell = document.createElement('th');
       nameCell.textContent = '名前';
       nameCell.className = 'name-col';
-      row.appendChild(nameCell);
+      nameCell.rowSpan = 2;
+      dayRow.appendChild(nameCell);
 
-      slots.forEach((slot) => {
-        const th = document.createElement('th');
-        th.textContent = slot.label;
-        th.title = slot.label;
-        row.appendChild(th);
+      dateOrder.forEach((dateKey) => {
+        const dayCell = document.createElement('th');
+        dayCell.className = 'day-header';
+        dayCell.colSpan = dateGroups.get(dateKey).length;
+        dayCell.textContent = formatDate(dateKey);
+        dayRow.appendChild(dayCell);
       });
 
-      scheduleHead.appendChild(row);
+      scheduleHead.appendChild(dayRow);
+
+      const timeRow = document.createElement('tr');
+      dateOrder.forEach((dateKey) => {
+        dateGroups.get(dateKey).forEach((slot) => {
+          const timeCell = document.createElement('th');
+          timeCell.className = 'time-header';
+          timeCell.textContent = slot.id.slice(11, 16);
+          timeCell.title = slot.label;
+          timeRow.appendChild(timeCell);
+        });
+      });
+
+      scheduleHead.appendChild(timeRow);
     }
 
     function getCurrentParticipantSlots(name, state) {
@@ -274,6 +301,15 @@
       saveState(state);
       renderTable();
     }
+
+    document.querySelectorAll('.nav-button').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = button.dataset.target;
+        if (target) {
+          window.location.href = target;
+        }
+      });
+    });
 
     saveAvailabilityBtn.addEventListener('click', saveAvailability);
     participantNameInput.addEventListener('keydown', (event) => {
