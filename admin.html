@@ -69,6 +69,35 @@
       participantDraft: {}
     };
 
+    // Simple admin protection: set a token and/or password.
+    // NOTE: This is client-side protection and not secure for sensitive data.
+    const ADMIN_TOKEN = 'admin-token-REPLACE_THIS';
+    const ADMIN_PASSWORD = 'adminpass';
+
+    function checkAdminAccess() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('admin_token');
+        if (token && token === ADMIN_TOKEN) {
+          sessionStorage.setItem('isAdmin', '1');
+          return true;
+        }
+        if (sessionStorage.getItem('isAdmin') === '1') return true;
+        const input = window.prompt('管理者パスワードを入力してください');
+        if (input === ADMIN_PASSWORD) {
+          sessionStorage.setItem('isAdmin', '1');
+          return true;
+        }
+      } catch (e) {
+        // ignore
+      }
+      document.body.innerHTML = '<div style="padding:40px;font-family:system-ui, -apple-system, sans-serif;"><h2>管理者認証が必要です</h2><p>許可されていません。<a href="index.html">参加者ページへ戻る</a></p></div>';
+      throw new Error('Unauthorized');
+    }
+
+    // enforce admin access on load
+    checkAdminAccess();
+
     const scheduleHead = document.getElementById('scheduleHead');
     const scheduleBody = document.getElementById('scheduleBody');
     const candidateDateList = document.getElementById('candidateDateList');

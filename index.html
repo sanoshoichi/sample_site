@@ -323,6 +323,10 @@
     }
 
     function deleteCurrentSchedule() {
+      if (FORCED_SCHEDULE_ID) {
+        alert('参加者は予定を削除できません。管理者に連絡してください。');
+        return;
+      }
       const app = getAppState();
       const id = app.activeScheduleId;
       if (!id) return;
