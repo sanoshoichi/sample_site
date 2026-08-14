@@ -403,10 +403,18 @@
 
           state.participantEntries.forEach((person) => {
             const cell = document.createElement('td');
-            const selected = person.slots.includes(slot.id);
+            // person.slots may be array of strings (old) or objects {id, mark}
+            const found = (person.slots || []).find((s) => (typeof s === 'string' ? s === slot.id : (s && s.id === slot.id)));
+            const selected = !!found;
 
             cell.className = selected ? 'slot selected' : 'slot';
-            cell.textContent = selected ? '○' : '';
+            // if object exists and has mark, display corresponding symbol
+            if (found && typeof found === 'object' && found.mark) {
+              const map = { circle: '○', triangle: '△', cross: '×' };
+              cell.textContent = map[found.mark] || '';
+            } else {
+              cell.textContent = selected ? '○' : '';
+            }
             cell.title = `${person.name} ${slot.label}`;
             cell.style.cursor = 'default';
             row.appendChild(cell);
@@ -449,10 +457,20 @@
       const state = getState();
       state.candidateDates = state.candidateDates.filter((date) => date !== dateString);
       state.participantEntries.forEach((person) => {
-        person.slots = person.slots.filter((slot) => !slot.startsWith(`${dateString}T`));
+        person.slots = (person.slots || []).filter((slot) => {
+          if (!slot) return false;
+          if (typeof slot === 'string') return !slot.startsWith(`${dateString}T`);
+          if (typeof slot === 'object' && slot.id) return !slot.id.startsWith(`${dateString}T`);
+          return false;
+        });
       });
       Object.keys(state.participantDraft || {}).forEach((name) => {
-        state.participantDraft[name] = (state.participantDraft[name] || []).filter((slot) => !slot.startsWith(`${dateString}T`));
+        state.participantDraft[name] = (state.participantDraft[name] || []).filter((slot) => {
+          if (!slot) return false;
+          if (typeof slot === 'string') return !slot.startsWith(`${dateString}T`);
+          if (typeof slot === 'object' && slot.id) return !slot.id.startsWith(`${dateString}T`);
+          return false;
+        });
       });
       saveState(state);
       renderCandidateDates();

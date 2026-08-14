@@ -273,7 +273,13 @@
         return;
       }
 
-      const draftSlots = [...new Set(state.participantDraft[targetName] || [])];
+      const draftArr = state.participantDraft[targetName] || [];
+      // dedupe by id
+      const draftSlots = draftArr.reduce((acc, s) => {
+        if (!acc.some((x) => x.id === s.id)) acc.push(s);
+        return acc;
+      }, []);
+
       const entry = state.participantEntries.find((person) => person.name === targetName);
 
       if (entry) {
