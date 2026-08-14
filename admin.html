@@ -146,13 +146,29 @@
       }
 
       try {
-        await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.1`, {
-          method: 'PATCH',
+        const checkResponse = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id&id=eq.1`, {
+          headers: getSupabaseHeaders(),
+          cache: 'no-store'
+        });
+
+        if (!checkResponse.ok) {
+          return;
+        }
+
+        const existingRows = await checkResponse.json();
+        const hasRow = Array.isArray(existingRows) && existingRows.some((row) => row.id === 1);
+
+        const url = hasRow ? `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.1` : `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`;
+        const method = hasRow ? 'PATCH' : 'POST';
+        const body = hasRow ? JSON.stringify({ payload: state }) : JSON.stringify({ id: 1, payload: state });
+
+        await fetch(url, {
+          method,
           headers: {
             ...getSupabaseHeaders(),
             Prefer: 'resolution=merge-duplicates'
           },
-          body: JSON.stringify({ payload: state })
+          body
         });
       } catch (error) {
         // Ignore network issues and keep local fallback behavior.
