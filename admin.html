@@ -55,14 +55,14 @@
   <script>
     
     const STORAGE_KEY = 'scheduleTableData';
-    const SUPABASE_URL = 'https://nwyfvlxjkonxpnkhuiuv.supabase.co/rest/v1/';
+    const SUPABASE_URL = 'https://nwyfvlxjkonxpnkhuiuv.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_kew3a0QTt7awm_saFyRj_A_Hgb6aQcq';
     const SUPABASE_TABLE = 'schedule_state';
     const HOUR_START = 9;
     const HOUR_END = 20;
 
     const defaultState = {
-      candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
+      candidateDates: [],
       participantEntries: [
         { name: 'TESTUSER', slots: [] }
       ],
@@ -294,48 +294,20 @@
 
     function renderHeader(slots) {
       scheduleHead.innerHTML = '';
+      const headerRow = document.createElement('tr');
+      const timeLabelCell = document.createElement('th');
+      timeLabelCell.textContent = '日時';
+      timeLabelCell.className = 'name-col';
+      headerRow.appendChild(timeLabelCell);
 
-      const dateGroups = new Map();
-      const dateOrder = [];
-
-      slots.forEach((slot) => {
-        const dateKey = slot.id.slice(0, 10);
-        if (!dateGroups.has(dateKey)) {
-          dateGroups.set(dateKey, []);
-          dateOrder.push(dateKey);
-        }
-        dateGroups.get(dateKey).push(slot);
+      state.participantEntries.forEach((person) => {
+        const userCell = document.createElement('th');
+        userCell.className = 'day-header';
+        userCell.textContent = person.name;
+        headerRow.appendChild(userCell);
       });
 
-      const dayRow = document.createElement('tr');
-      const nameCell = document.createElement('th');
-      nameCell.textContent = '名前';
-      nameCell.className = 'name-col';
-      nameCell.rowSpan = 2;
-      dayRow.appendChild(nameCell);
-
-      dateOrder.forEach((dateKey) => {
-        const dayCell = document.createElement('th');
-        dayCell.className = 'day-header';
-        dayCell.colSpan = dateGroups.get(dateKey).length;
-        dayCell.textContent = formatDate(dateKey);
-        dayRow.appendChild(dayCell);
-      });
-
-      scheduleHead.appendChild(dayRow);
-
-      const timeRow = document.createElement('tr');
-      dateOrder.forEach((dateKey) => {
-        dateGroups.get(dateKey).forEach((slot) => {
-          const timeCell = document.createElement('th');
-          timeCell.className = 'time-header';
-          timeCell.textContent = slot.id.slice(11, 16);
-          timeCell.title = slot.label;
-          timeRow.appendChild(timeCell);
-        });
-      });
-
-      scheduleHead.appendChild(timeRow);
+      scheduleHead.appendChild(headerRow);
     }
 
     function renderTable() {
@@ -357,28 +329,15 @@
 
       renderHeader(slots);
 
-      state.participantEntries.forEach((person) => {
+      slots.forEach((slot) => {
         const row = document.createElement('tr');
+        const slotLabel = document.createElement('th');
+        slotLabel.className = 'time-header';
+        slotLabel.textContent = `${formatDate(slot.id.slice(0, 10))} ${slot.id.slice(11, 16)}`;
+        slotLabel.title = slot.label;
+        row.appendChild(slotLabel);
 
-        const nameCell = document.createElement('th');
-        nameCell.className = 'person-name';
-
-        const nameWrap = document.createElement('div');
-        nameWrap.className = 'person-name-wrap';
-        nameWrap.textContent = person.name;
-
-        const removeButton = document.createElement('button');
-        removeButton.type = 'button';
-        removeButton.className = 'person-remove';
-        removeButton.textContent = '削除';
-        removeButton.setAttribute('aria-label', `${person.name}を削除`);
-        removeButton.addEventListener('click', () => removeParticipant(person.name));
-
-        nameCell.appendChild(nameWrap);
-        nameCell.appendChild(removeButton);
-        row.appendChild(nameCell);
-
-        slots.forEach((slot) => {
+        state.participantEntries.forEach((person) => {
           const cell = document.createElement('td');
           const selected = person.slots.includes(slot.id);
 

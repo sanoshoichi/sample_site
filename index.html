@@ -40,7 +40,6 @@
           <span>参加者名</span>
           <div class="inline-field">
             <input id="participantName" type="text" placeholder="例：山田 太郎" />
-            <button id="editParticipantBtn" type="button" class="secondary-btn">編集</button>
             <button id="saveAvailabilityBtn" type="button">登録</button>
           </div>
         </label>
@@ -50,19 +49,16 @@
 
   <script>
     const STORAGE_KEY = 'scheduleTableData';
-    const SUPABASE_URL = 'https://nwyfvlxjkonxpnkhuiuv.supabase.co/rest/v1/';
+    const SUPABASE_URL = 'https://nwyfvlxjkonxpnkhuiuv.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_kew3a0QTt7awm_saFyRj_A_Hgb6aQcq';
     const SUPABASE_TABLE = 'schedule_state';
     const HOUR_START = 9;
     const HOUR_END = 20;
 
     const defaultState = {
-      candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
+      candidateDates: [],
       participantEntries: [
-        { name: 'TESTUSER', slots: [] },
-        { name: '山田', slots: ['2026-08-15T10:00:00', '2026-08-15T11:00:00', '2026-08-17T13:00:00'] },
-        { name: '佐藤', slots: ['2026-08-15T09:00:00', '2026-08-17T14:00:00', '2026-08-20T15:00:00'] },
-        { name: '鈴木', slots: ['2026-08-17T10:00:00', '2026-08-17T11:00:00', '2026-08-20T12:00:00'] }
+        { name: 'TESTUSER', slots: [] }
       ],
       participantDraft: {}
     };
@@ -71,12 +67,11 @@
     const scheduleBody = document.getElementById('scheduleBody');
     const candidateDateList = document.getElementById('candidateDateList');
     const participantNameInput = document.getElementById('participantName');
-    const editParticipantBtn = document.getElementById('editParticipantBtn');
     const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
+    let activeEditTarget = null;
 
     function updateActionButtonState() {
       const hasName = participantNameInput.value.trim().length > 0;
-      editParticipantBtn.disabled = !hasName;
       saveAvailabilityBtn.disabled = !hasName;
     }
 
@@ -204,50 +199,51 @@
         });
     }
 
-    function renderHeader(slots) {
+    function renderHeader(state) {
       scheduleHead.innerHTML = '';
+      const users = [...state.participantEntries.map((person) => person.name)];
+      const activeName = participantNameInput.value.trim();
 
-      const dateGroups = new Map();
-      const dateOrder = [];
+      if (activeName && !users.includes(activeName)) {
+        users.push(activeName);
+      }
 
-      slots.forEach((slot) => {
-        const dateKey = slot.id.slice(0, 10);
-        if (!dateGroups.has(dateKey)) {
-          dateGroups.set(dateKey, []);
-          dateOrder.push(dateKey);
-        }
-        dateGroups.get(dateKey).push(slot);
-      });
+      const headerRow = document.createElement('tr');
+      const timeLabelCell = document.createElement('th');
+      timeLabelCell.textContent = '日時';
+      timeLabelCell.className = 'name-col';
+      headerRow.appendChild(timeLabelCell);
 
-      const dayRow = document.createElement('tr');
-      const nameCell = document.createElement('th');
-      nameCell.textContent = '名前';
-      nameCell.className = 'name-col';
-      nameCell.rowSpan = 2;
-      dayRow.appendChild(nameCell);
+      users.forEach((userName) => {
+        const userCell = document.createElement('th');
+        userCell.className = 'day-header';
 
-      dateOrder.forEach((dateKey) => {
-        const dayCell = document.createElement('th');
-        dayCell.className = 'day-header';
-        dayCell.colSpan = dateGroups.get(dateKey).length;
-        dayCell.textContent = formatDate(dateKey);
-        dayRow.appendChild(dayCell);
-      });
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'person-name-wrap';
 
-      scheduleHead.appendChild(dayRow);
+        const nameText = document.createElement('span');
+        nameText.textContent = userName;
+        nameText.className = 'person-name-text';
 
-      const timeRow = document.createElement('tr');
-      dateOrder.forEach((dateKey) => {
-        dateGroups.get(dateKey).forEach((slot) => {
-          const timeCell = document.createElement('th');
-          timeCell.className = 'time-header';
-          timeCell.textContent = slot.id.slice(11, 16);
-          timeCell.title = slot.label;
-          timeRow.appendChild(timeCell);
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = activeEditTarget === userName ? 'row-edit-btn active' : 'row-edit-btn';
+        editButton.textContent = activeEditTarget === userName ? '編集中' : '編集';
+        editButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          activeEditTarget = userName;
+          participantNameInput.value = userName;
+          updateActionButtonState();
+          renderTable();
         });
+
+        nameWrap.appendChild(nameText);
+        nameWrap.appendChild(editButton);
+        userCell.appendChild(nameWrap);
+        headerRow.appendChild(userCell);
       });
 
-      scheduleHead.appendChild(timeRow);
+      scheduleHead.appendChild(headerRow);
     }
 
     function getCurrentParticipantSlots(name, state) {
@@ -273,41 +269,39 @@
         return;
       }
 
-      renderHeader(slots);
-
+      const users = [...state.participantEntries.map((person) => person.name)];
       const activeName = participantNameInput.value.trim();
-      const rows = [...state.participantEntries];
-
-      if (activeName && !rows.some((person) => person.name === activeName)) {
-        rows.push({ name: activeName, slots: getCurrentParticipantSlots(activeName, state) });
+      if (activeName && !users.includes(activeName)) {
+        users.push(activeName);
       }
 
-      rows.forEach((person) => {
+      renderHeader(state);
+
+      slots.forEach((slot) => {
         const row = document.createElement('tr');
-        const entryName = person.name;
-        const displaySlots = getCurrentParticipantSlots(entryName, state);
-        const canEdit = activeName === entryName && activeName !== '';
+        const slotLabel = document.createElement('th');
+        slotLabel.className = 'time-header';
+        slotLabel.textContent = `${formatDate(slot.id.slice(0, 10))} ${slot.id.slice(11, 16)}`;
+        slotLabel.title = slot.label;
+        row.appendChild(slotLabel);
 
-        const nameCell = document.createElement('th');
-        nameCell.textContent = entryName;
-        nameCell.className = 'person-name';
-        nameCell.style.minWidth = `${Math.max(90, Math.min(220, entryName.length * 12 + 28))}px`;
-        row.appendChild(nameCell);
-
-        slots.forEach((slot) => {
+        users.forEach((userName) => {
           const cell = document.createElement('td');
+          const person = state.participantEntries.find((entry) => entry.name === userName) || { slots: [] };
+          const displaySlots = getCurrentParticipantSlots(userName, state);
           const selected = displaySlots.includes(slot.id);
+          const canEdit = activeEditTarget === userName;
 
           cell.className = selected ? 'slot selected' : 'slot';
-          cell.dataset.person = entryName;
+          cell.dataset.person = userName;
           cell.dataset.slotId = slot.id;
           cell.setAttribute('role', 'button');
           cell.setAttribute('tabindex', '0');
           cell.textContent = selected ? '○' : '';
-          cell.title = `${entryName} ${slot.label}`;
+          cell.title = `${userName} ${slot.label}`;
 
           if (canEdit) {
-            const handleSelection = () => toggleDraftSlot(entryName, slot.id);
+            const handleSelection = () => toggleDraftSlot(userName, slot.id);
             cell.addEventListener('click', handleSelection);
             cell.addEventListener('keydown', (event) => {
               if (event.key === 'Enter' || event.key === ' ') {
@@ -346,39 +340,21 @@
       renderTable();
     }
 
-    function editParticipant() {
-      const state = getState();
-      const name = participantNameInput.value.trim();
-
-      if (!name) {
-        participantNameInput.focus();
-        return;
-      }
-
-      const entry = state.participantEntries.find((person) => person.name === name);
-      if (!entry) {
-        alert('その名前はまだ登録されていません。新規登録は「登録」ボタンを使ってください。');
-        return;
-      }
-
-      state.participantDraft[name] = [...entry.slots];
-      saveState(state);
-      renderTable();
-    }
-
     function saveAvailability() {
       const state = getState();
+      const targetName = activeEditTarget || participantNameInput.value.trim();
       const name = participantNameInput.value.trim();
-      if (!name) {
+
+      if (!targetName) {
         participantNameInput.focus();
         return;
       }
 
-      const draftSlots = state.participantDraft[name] || [];
-      const entry = state.participantEntries.find((person) => person.name === name);
+      const draftSlots = state.participantDraft[targetName] || [];
+      const entry = state.participantEntries.find((person) => person.name === targetName);
 
-      if (entry && !state.participantDraft[name]) {
-        alert('この名前はすでに登録されています。編集ボタンから修正してください。');
+      if (entry && !state.participantDraft[targetName]) {
+        alert('この名前はすでに登録されています。一覧の「編集」から修正してください。');
         participantNameInput.focus();
         return;
       }
@@ -386,16 +362,18 @@
       if (entry) {
         entry.slots = [...new Set(draftSlots)];
       } else {
-        if (state.participantEntries.some((person) => person.name === name)) {
+        if (state.participantEntries.some((person) => person.name === targetName)) {
           alert('同じ名前は登録できません。');
           participantNameInput.focus();
           return;
         }
 
-        state.participantEntries.push({ name, slots: [...draftSlots] });
+        state.participantEntries.push({ name: targetName, slots: [...draftSlots] });
       }
 
-      delete state.participantDraft[name];
+      delete state.participantDraft[targetName];
+      activeEditTarget = null;
+      participantNameInput.value = targetName;
       saveState(state);
       renderTable();
     }
@@ -409,15 +387,10 @@
       });
     });
 
-    editParticipantBtn.addEventListener('click', editParticipant);
     saveAvailabilityBtn.addEventListener('click', saveAvailability);
     participantNameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
-        if (event.shiftKey) {
-          editParticipant();
-        } else {
-          saveAvailability();
-        }
+        saveAvailability();
       }
     });
     participantNameInput.addEventListener('input', () => {

@@ -367,8 +367,36 @@ h2 {
 }
 
 .person-name-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.person-name-text {
   display: inline-block;
-  margin-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-edit-btn {
+  appearance: none;
+  border: 1px solid rgba(212, 165, 87, 0.4);
+  background: rgba(212, 165, 87, 0.08);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row-edit-btn.active {
+  background: linear-gradient(135deg, var(--gold), var(--gold-strong));
+  color: #1d1710;
+  border-color: rgba(255, 233, 164, 0.8);
 }
 
 .person-remove {
