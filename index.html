@@ -55,6 +55,14 @@
     const HOUR_START = 9;
     const HOUR_END = 20;
 
+    const MARK_SYMBOLS = {
+      circle: '○',
+      triangle: '△',
+      cross: '×'
+    };
+
+    const MARK_CYCLE = [null, 'circle', 'triangle', 'cross'];
+
     const defaultState = {
       candidateDates: [],
       participantEntries: [
@@ -68,7 +76,7 @@
     const candidateDateList = document.getElementById('candidateDateList');
     const participantNameInput = document.getElementById('participantName');
     const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
-    let activeEditTarget = null;
+    const activeEditTargets = new Set();
 
     function updateActionButtonState() {
       const hasName = participantNameInput.value.trim().length > 0;
@@ -90,6 +98,8 @@
       try {
         const parsed = JSON.parse(raw);
         if (isValidState(parsed)) {
+          // migrate old slot string arrays to object form {id, mark}
+          migrateSlots(parsed);
           return parsed;
         }
       } catch (error) {
@@ -97,6 +107,47 @@
       }
 
       return deepClone(defaultState);
+    }
+
+    function migrateSlots(state) {
+      if (!state) return;
+
+      // participantEntries: convert string slots to {id, mark: 'circle'}
+      state.participantEntries = (state.participantEntries || []).map((person) => {
+        const rawSlots = person.slots || [];
+        const normalized = rawSlots.map((s) => {
+          if (!s) return null;
+          if (typeof s === 'string') return { id: s, mark: 'circle' };
+          if (typeof s === 'object' && s.id) return s;
+          return null;
+        }).filter(Boolean);
+        return { ...person, slots: normalized };
+      });
+
+      // participantDraft: same conversion
+      const drafts = state.participantDraft || {};
+      Object.keys(drafts).forEach((name) => {
+        const arr = drafts[name] || [];
+        drafts[name] = arr.map((s) => {
+          if (!s) return null;
+          if (typeof s === 'string') return { id: s, mark: 'circle' };
+          if (typeof s === 'object' && s.id) return s;
+          return null;
+        }).filter(Boolean);
+      });
+      state.participantDraft = drafts;
+    }
+
+    function getSlotMark(name, slotId, state) {
+      // If in edit for this name, prefer draft
+      const draft = (state.participantDraft && state.participantDraft[name]) || [];
+      const inDraft = draft.find((s) => s.id === slotId);
+      if (inDraft) return inDraft.mark || null;
+
+      const entry = (state.participantEntries || []).find((p) => p.name === name);
+      if (!entry) return null;
+      const found = (entry.slots || []).find((s) => s.id === slotId);
+      return found ? (found.mark || null) : null;
     }
 
     function getSupabaseHeaders() {
@@ -215,11 +266,10 @@
         });
     }
 
-    function finishEditing() {
+    function finishEditing(targetName) {
       const state = getState();
-      const targetName = activeEditTarget;
 
-      if (!targetName) {
+      if (!targetName || !activeEditTargets.has(targetName)) {
         return;
       }
 
@@ -231,7 +281,7 @@
       }
 
       delete state.participantDraft[targetName];
-      activeEditTarget = null;
+      activeEditTargets.delete(targetName);
       participantNameInput.value = '';
       saveState(state);
       updateActionButtonState();
@@ -266,13 +316,13 @@
 
         const editButton = document.createElement('button');
         editButton.type = 'button';
-        editButton.className = activeEditTarget === userName ? 'row-edit-btn active' : 'row-edit-btn';
-        editButton.textContent = activeEditTarget === userName ? '完了' : '編集';
+        editButton.className = activeEditTargets.has(userName) ? 'row-edit-btn active' : 'row-edit-btn';
+        editButton.textContent = activeEditTargets.has(userName) ? '完了' : '編集';
         editButton.addEventListener('click', (event) => {
           event.stopPropagation();
 
-          if (activeEditTarget === userName) {
-            finishEditing();
+          if (activeEditTargets.has(userName)) {
+            finishEditing(userName);
             return;
           }
 
@@ -283,8 +333,7 @@
             saveState(state);
           }
 
-          activeEditTarget = userName;
-          participantNameInput.value = userName;
+          activeEditTargets.add(userName);
           updateActionButtonState();
           renderTable();
         });
@@ -298,14 +347,15 @@
       scheduleHead.appendChild(headerRow);
     }
 
+    // NOTE: slots are stored as objects {id, mark}
     function getCurrentParticipantSlots(name, state) {
       const entry = state.participantEntries.find((person) => person.name === name) || { slots: [] };
 
-      if (activeEditTarget === name && state.participantDraft[name]) {
-        return [...new Set(state.participantDraft[name])];
+      if (activeEditTargets.has(name) && state.participantDraft[name]) {
+        return (state.participantDraft[name] || []).slice();
       }
 
-      return [...new Set(entry.slots)];
+      return (entry.slots || []).slice();
     }
 
     function renderTable() {
@@ -364,16 +414,15 @@
 
           users.forEach((userName) => {
             const cell = document.createElement('td');
-            const displaySlots = getCurrentParticipantSlots(userName, state);
-            const selected = displaySlots.includes(slot.id);
-            const canEdit = activeEditTarget === userName;
+            const canEdit = activeEditTargets.has(userName);
+            const mark = getSlotMark(userName, slot.id, state);
 
-            cell.className = selected ? 'slot selected' : 'slot';
+            cell.className = mark ? 'slot selected' : 'slot';
             cell.dataset.person = userName;
             cell.dataset.slotId = slot.id;
             cell.setAttribute('role', 'button');
             cell.setAttribute('tabindex', '0');
-            cell.textContent = selected ? '○' : '';
+            cell.textContent = mark ? (MARK_SYMBOLS[mark] || '') : '';
             cell.title = `${userName} ${slot.label}`;
 
             if (canEdit) {
@@ -400,62 +449,54 @@
     function toggleDraftSlot(name, slotId) {
       const state = getState();
       const cleanName = name.trim();
-      if (!cleanName) return;
+      if (!cleanName || !activeEditTargets.has(cleanName)) return;
 
       if (!state.participantDraft[cleanName]) {
         const entry = state.participantEntries.find((person) => person.name === cleanName);
-        state.participantDraft[cleanName] = entry ? [...entry.slots] : [];
+        state.participantDraft[cleanName] = (entry ? (entry.slots || []).map((s) => ({ ...s })) : []);
       }
 
-      const slotIndex = state.participantDraft[cleanName].indexOf(slotId);
-      if (slotIndex >= 0) {
-        state.participantDraft[cleanName].splice(slotIndex, 1);
+      const arr = state.participantDraft[cleanName];
+      const idx = arr.findIndex((s) => s.id === slotId);
+      let currentMark = null;
+      if (idx >= 0) currentMark = arr[idx].mark || null;
+
+      // cycle to next mark
+      const nextMark = MARK_CYCLE[(MARK_CYCLE.indexOf(currentMark) + 1) % MARK_CYCLE.length];
+
+      if (idx >= 0) {
+        if (nextMark === null) {
+          arr.splice(idx, 1);
+        } else {
+          arr[idx].mark = nextMark;
+        }
       } else {
-        state.participantDraft[cleanName].push(slotId);
+        if (nextMark !== null) {
+          arr.push({ id: slotId, mark: nextMark });
+        }
       }
 
+      state.participantDraft[cleanName] = arr;
       saveState(state);
       renderTable();
     }
 
     function saveAvailability() {
       const state = getState();
-      const targetName = activeEditTarget || participantNameInput.value.trim();
       const name = participantNameInput.value.trim();
 
-      if (!targetName) {
+      if (!name) {
         participantNameInput.focus();
         return;
       }
 
-      if (activeEditTarget) {
-        finishEditing();
-        return;
-      }
-
-      const draftSlots = state.participantDraft[targetName] || [];
-      const entry = state.participantEntries.find((person) => person.name === targetName);
-
-      if (entry && !state.participantDraft[targetName]) {
+      if (state.participantEntries.some((person) => person.name === name)) {
         alert('この名前はすでに登録されています。一覧の「編集」から修正してください。');
         participantNameInput.focus();
         return;
       }
 
-      if (entry) {
-        entry.slots = [...new Set(draftSlots)];
-      } else {
-        if (state.participantEntries.some((person) => person.name === targetName)) {
-          alert('同じ名前は登録できません。');
-          participantNameInput.focus();
-          return;
-        }
-
-        state.participantEntries.push({ name: targetName, slots: [...draftSlots] });
-      }
-
-      delete state.participantDraft[targetName];
-      activeEditTarget = null;
+      state.participantEntries.push({ name, slots: [] });
       participantNameInput.value = '';
       saveState(state);
       updateActionButtonState();
