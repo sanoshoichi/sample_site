@@ -179,7 +179,8 @@
       calendarLabel.textContent = `${monthStart.getFullYear()}年 ${monthStart.getMonth() + 1}月`;
       calendarGrid.innerHTML = '';
 
-      ['日', '月', '火', '水', '木', '金', '土'].forEach((weekday) => {
+      const weekdayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      weekdayNames.forEach((weekday) => {
         const label = document.createElement('div');
         label.className = 'calendar-weekday';
         label.textContent = weekday;

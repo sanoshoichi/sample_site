@@ -226,6 +226,7 @@
         const nameCell = document.createElement('th');
         nameCell.textContent = entryName;
         nameCell.className = 'person-name';
+        nameCell.style.minWidth = `${Math.max(90, Math.min(220, entryName.length * 12 + 28))}px`;
         row.appendChild(nameCell);
 
         slots.forEach((slot) => {
