@@ -28,13 +28,6 @@
         <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
       </div>
 
-      <div class="schedule-wrap">
-        <table class="schedule-table" aria-label="予定調整表">
-          <thead id="scheduleHead"></thead>
-          <tbody id="scheduleBody"></tbody>
-        </table>
-      </div>
-
       <div class="participant-actions">
         <label class="field" for="participantName">
           <span>参加者名</span>
@@ -43,6 +36,13 @@
             <button id="saveAvailabilityBtn" type="button">登録</button>
           </div>
         </label>
+      </div>
+
+      <div class="schedule-wrap">
+        <table class="schedule-table" aria-label="予定調整表">
+          <thead id="scheduleHead"></thead>
+          <tbody id="scheduleBody"></tbody>
+        </table>
       </div>
     </section>
   </div>
@@ -232,7 +232,7 @@
 
       delete state.participantDraft[targetName];
       activeEditTarget = null;
-      participantNameInput.value = targetName;
+      participantNameInput.value = '';
       saveState(state);
       updateActionButtonState();
       renderTable();
@@ -241,11 +241,6 @@
     function renderHeader(state) {
       scheduleHead.innerHTML = '';
       const users = [...state.participantEntries.map((person) => person.name)];
-      const activeName = participantNameInput.value.trim();
-
-      if (activeName && !users.includes(activeName)) {
-        users.push(activeName);
-      }
 
       const headerRow = document.createElement('tr');
       const dateLabelCell = document.createElement('th');
@@ -331,10 +326,6 @@
       }
 
       const users = [...state.participantEntries.map((person) => person.name)];
-      const activeName = participantNameInput.value.trim();
-      if (activeName && !users.includes(activeName)) {
-        users.push(activeName);
-      }
 
       renderHeader(state);
 
@@ -465,8 +456,9 @@
 
       delete state.participantDraft[targetName];
       activeEditTarget = null;
-      participantNameInput.value = targetName;
+      participantNameInput.value = '';
       saveState(state);
+      updateActionButtonState();
       renderTable();
     }
 
