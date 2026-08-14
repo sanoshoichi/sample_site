@@ -75,6 +75,7 @@
     const SUPABASE_TABLE = 'schedule_state';
     const HOUR_START = 9;
     const HOUR_END = 20;
+      let SERVER_HAS_SCHEDULES = false;
 
     const defaultState = {
       candidateDates: [],
@@ -229,6 +230,9 @@
     async function saveAppState(appState) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
 
+      // If server supports per-schedule CRUD, avoid writing the legacy single-row table
+      if (SERVER_HAS_SCHEDULES) return;
+
       if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('<anon public key>')) {
         return;
       }
@@ -301,7 +305,9 @@
           activeScheduleId: (rows && rows[0] && rows[0].id) || null
         };
         migrateSlots(app);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
+          // mark that server supports per-schedule table
+          SERVER_HAS_SCHEDULES = true;
         return app;
       } catch (e) {
         return null;
