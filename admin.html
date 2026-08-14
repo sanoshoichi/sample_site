@@ -275,6 +275,52 @@
       };
     }
 
+    // --- per-schedule CRUD on Supabase 'schedules' table ---
+    async function listSchedulesFromServer() {
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY) return null;
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/schedules?select=id,title,payload`, {
+          headers: getSupabaseHeaders(),
+          cache: 'no-store'
+        });
+        if (!res.ok) return null;
+        const rows = await res.json();
+        const app = { schedules: (rows || []).map(r => ({ id: r.id, title: r.title || r.id, payload: r.payload || deepClone(defaultState) })), activeScheduleId: (rows && rows[0] && rows[0].id) || 'default' };
+        migrateSlots(app);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
+        return app;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function upsertScheduleToServer(sched) {
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY) return false;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/schedules`, {
+          method: 'POST',
+          headers: { ...getSupabaseHeaders(), Prefer: 'resolution=merge-duplicates' },
+          body: JSON.stringify({ id: sched.id, title: sched.title, payload: sched.payload })
+        });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    async function deleteScheduleFromServer(id) {
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY) return false;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/schedules?id=eq.${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: getSupabaseHeaders()
+        });
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     async function syncStateFromServer() {
       if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('<anon public key>')) {
         return;
@@ -698,10 +744,12 @@
       const app = getAppState();
       const id = `s_${Date.now()}`;
       const payload = deepClone(defaultState);
+      const sched = { id, title, payload };
       app.schedules = app.schedules || [];
-      app.schedules.push({ id, title, payload });
+      app.schedules.push(sched);
       app.activeScheduleId = id;
-      saveAppState(app).then(() => {
+      saveAppState(app).then(async () => {
+        await upsertScheduleToServer(sched);
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
@@ -729,7 +777,8 @@
       } else {
         app.activeScheduleId = app.schedules[0].id;
       }
-      saveAppState(app).then(() => {
+      saveAppState(app).then(async () => {
+        await deleteScheduleFromServer(id);
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
@@ -770,10 +819,12 @@
       const app = getAppState();
       const id = `s_${Date.now()}`;
       const payload = deepClone(defaultState);
+      const sched = { id, title, payload };
       app.schedules = app.schedules || [];
-      app.schedules.push({ id, title, payload });
+      app.schedules.push(sched);
       app.activeScheduleId = id;
-      saveAppState(app).then(() => {
+      saveAppState(app).then(async () => {
+        await upsertScheduleToServer(sched);
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
@@ -797,7 +848,8 @@
       } else {
         app.activeScheduleId = app.schedules[0].id;
       }
-      saveAppState(app).then(() => {
+      saveAppState(app).then(async () => {
+        await deleteScheduleFromServer(id);
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
@@ -821,11 +873,23 @@
     const delBtn = document.getElementById('deleteScheduleBtn');
     if (delBtn) delBtn.addEventListener('click', deleteCurrentSchedule);
 
-    syncStateFromServer();
-    renderScheduleSelector();
-    renderCandidateDates();
-    renderCalendar();
-    renderTable();
+    // prefer per-schedule server list when available
+    (async () => {
+      const app = await listSchedulesFromServer();
+      if (app) {
+        // use server-provided app state
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderCalendar();
+        renderTable();
+      } else {
+        syncStateFromServer();
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderCalendar();
+        renderTable();
+      }
+    })();
   </script>
 </body>
 </html>
