@@ -319,7 +319,24 @@
       state.participantEntries.forEach((person) => {
         const userCell = document.createElement('th');
         userCell.className = 'day-header';
-        userCell.textContent = person.name;
+
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'person-name-wrap';
+
+        const nameText = document.createElement('span');
+        nameText.textContent = person.name;
+        nameText.className = 'person-name-text';
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'person-remove';
+        removeButton.textContent = '削除';
+        removeButton.setAttribute('aria-label', `${person.name}を削除`);
+        removeButton.addEventListener('click', () => removeParticipant(person.name));
+
+        nameWrap.appendChild(nameText);
+        nameWrap.appendChild(removeButton);
+        userCell.appendChild(nameWrap);
         headerRow.appendChild(userCell);
       });
 

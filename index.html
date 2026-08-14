@@ -276,6 +276,13 @@
             return;
           }
 
+          const state = getState();
+          const entry = state.participantEntries.find((person) => person.name === userName);
+          if (entry && !state.participantDraft[userName]) {
+            state.participantDraft[userName] = [...entry.slots];
+            saveState(state);
+          }
+
           activeEditTarget = userName;
           participantNameInput.value = userName;
           updateActionButtonState();
@@ -371,7 +378,8 @@
       if (!cleanName) return;
 
       if (!state.participantDraft[cleanName]) {
-        state.participantDraft[cleanName] = [];
+        const entry = state.participantEntries.find((person) => person.name === cleanName);
+        state.participantDraft[cleanName] = entry ? [...entry.slots] : [];
       }
 
       const slotIndex = state.participantDraft[cleanName].indexOf(slotId);
