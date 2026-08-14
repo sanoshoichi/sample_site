@@ -430,6 +430,16 @@
           cell.classList.add('selected');
         }
 
+        // highlight dates already registered for the active schedule
+        try {
+          const state = getState();
+          if (state && Array.isArray(state.candidateDates) && state.candidateDates.includes(dateKey)) {
+            cell.classList.add('registered');
+          }
+        } catch (e) {
+          // ignore
+        }
+
         cell.addEventListener('click', () => {
           if (selectedDates.includes(dateKey)) {
             selectedDates = selectedDates.filter((value) => value !== dateKey);
@@ -654,6 +664,78 @@
     clearSelectedDatesBtn.addEventListener('click', () => {
       selectedDates = [];
       renderCalendar();
+    });
+
+    // wire schedule selector and management buttons
+    function renderScheduleSelector() {
+      const select = document.getElementById('scheduleSelect');
+      if (!select) return;
+      const app = getAppState();
+      select.innerHTML = '';
+      (app.schedules || []).forEach((s) => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.title || s.id;
+        if (app.activeScheduleId === s.id) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function createNewSchedule() {
+      const title = window.prompt('新しい予定のタイトルを入力してください');
+      if (!title) return;
+      const app = getAppState();
+      const id = `s_${Date.now()}`;
+      const payload = deepClone(defaultState);
+      app.schedules = app.schedules || [];
+      app.schedules.push({ id, title, payload });
+      app.activeScheduleId = id;
+      saveAppState(app).then(() => {
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderTable();
+        renderCalendar();
+        const url = new URL(window.location.href);
+        url.searchParams.set('admin_token', ADMIN_TOKEN);
+        try { navigator.clipboard.writeText(url.toString()); } catch (e) {}
+        alert('新しい予定を作成しました。共有用の管理URL（クリップボードにコピー）を発行しました。');
+      });
+    }
+
+    function deleteCurrentSchedule() {
+      const app = getAppState();
+      const id = app.activeScheduleId;
+      if (!id) return;
+      const sched = (app.schedules || []).find(s => s.id === id);
+      if (!sched) return;
+      const ok = window.confirm(`${sched.title || sched.id} を削除してもよろしいですか？`);
+      if (!ok) return;
+      app.schedules = (app.schedules || []).filter(s => s.id !== id);
+      if (!app.schedules.length) {
+        const newid = 'default';
+        app.schedules.push({ id: newid, title: 'Default', payload: deepClone(defaultState) });
+        app.activeScheduleId = newid;
+      } else {
+        app.activeScheduleId = app.schedules[0].id;
+      }
+      saveAppState(app).then(() => {
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderTable();
+        renderCalendar();
+      });
+    }
+
+    document.getElementById('newScheduleBtn').addEventListener('click', createNewSchedule);
+    document.getElementById('deleteScheduleBtn').addEventListener('click', deleteCurrentSchedule);
+    document.getElementById('scheduleSelect').addEventListener('change', (e) => {
+      const app = getAppState();
+      app.activeScheduleId = e.target.value;
+      saveAppState(app).then(() => {
+        renderCandidateDates();
+        renderTable();
+        renderCalendar();
+      });
     });
 
     // schedule selector helpers
