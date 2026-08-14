@@ -84,6 +84,7 @@
     const participantNameInput = document.getElementById('participantName');
     const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
     const activeEditTargets = new Set();
+    let FORCED_SCHEDULE_ID = null;
 
     function updateActionButtonState() {
       const hasName = participantNameInput.value.trim().length > 0;
@@ -255,6 +256,10 @@
     }
 
     function createNewSchedule() {
+      if (FORCED_SCHEDULE_ID) {
+        alert('参加者は新しい予定を作成できません。管理者が発行した共有URLから参加してください。');
+        return;
+      }
       const title = window.prompt('新しい予定のタイトルを入力してください');
       if (!title) return;
       const app = getAppState();
@@ -299,6 +304,8 @@
         app.schedules.push({ id, title: `Shared ${id}`, payload: deepClone(defaultState) });
       }
       app.activeScheduleId = id;
+      // mark as forced so UI/actions can restrict participant capabilities
+      FORCED_SCHEDULE_ID = id;
       saveAppState(app);
 
       // hide schedule controls so participant cannot switch
@@ -307,6 +314,11 @@
       // hide admin navigation so participants can't jump to admin page
       const adminBtn = document.querySelector('.nav-button[data-target="admin.html"]');
       if (adminBtn) adminBtn.style.display = 'none';
+      // hide schedule management buttons
+      const newBtn = document.getElementById('newScheduleBtn');
+      if (newBtn) newBtn.style.display = 'none';
+      const delBtn = document.getElementById('deleteScheduleBtn');
+      if (delBtn) delBtn.style.display = 'none';
       return true;
     }
 
