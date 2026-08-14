@@ -184,9 +184,13 @@
       }
     }
 
+    function getEmptyAppState() {
+      return { schedules: [], activeScheduleId: null };
+    }
+
     function getAppState() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return deepClone({ schedules: [{ id: 'default', title: 'Default', payload: deepClone(defaultState) }], activeScheduleId: 'default' });
+      if (!raw) return getEmptyAppState();
 
       try {
         const parsed = JSON.parse(raw);
@@ -205,13 +209,20 @@
         // fall through
       }
 
-      return deepClone({ schedules: [{ id: 'default', title: 'Default', payload: deepClone(defaultState) }], activeScheduleId: 'default' });
+      return getEmptyAppState();
+    }
+
+    function hasActiveSchedule() {
+      const app = getAppState();
+      const schedules = app.schedules || [];
+      return !!(app.activeScheduleId && schedules.some((schedule) => schedule.id === app.activeScheduleId));
     }
 
     function getState() {
       const app = getAppState();
-      const activeId = app.activeScheduleId || (app.schedules[0] && app.schedules[0].id);
-      const sched = (app.schedules || []).find((s) => s.id === activeId) || (app.schedules[0] || { payload: deepClone(defaultState) });
+      const activeId = app.activeScheduleId;
+      const sched = (app.schedules || []).find((s) => s.id === activeId);
+      if (!sched) return { candidateDates: [], participantEntries: [], participantDraft: {} };
       return sched.payload;
     }
 
@@ -747,12 +758,23 @@
       renderCalendar();
     });
 
-    // wire schedule selector and management buttons
     function renderScheduleSelector() {
       const select = document.getElementById('scheduleSelect');
       if (!select) return;
       const app = getAppState();
       select.innerHTML = '';
+
+      if (!app.schedules || !app.schedules.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '-';
+        opt.selected = true;
+        select.appendChild(opt);
+        select.disabled = true;
+        return;
+      }
+
+      select.disabled = false;
       (app.schedules || []).forEach((s) => {
         const opt = document.createElement('option');
         opt.value = s.id;
@@ -789,20 +811,15 @@
       const app = getAppState();
       const id = app.activeScheduleId;
       if (!id) return;
-      const sched = (app.schedules || []).find(s => s.id === id);
+      const sched = (app.schedules || []).find((s) => s.id === id);
       if (!sched) return;
       const ok = window.confirm(`${sched.title || sched.id} を削除してもよろしいですか？`);
       if (!ok) return;
-      app.schedules = (app.schedules || []).filter(s => s.id !== id);
-      if (!app.schedules.length) {
-        const newid = 'default';
-        app.schedules.push({ id: newid, title: 'Default', payload: deepClone(defaultState) });
-        app.activeScheduleId = newid;
-      } else {
-        app.activeScheduleId = app.schedules[0].id;
-      }
+
+      app.schedules = (app.schedules || []).filter((s) => s.id !== id);
+      app.activeScheduleId = app.schedules.length ? app.schedules[0].id : null;
       saveAppState(app).then(async () => {
-        await deleteScheduleFromServer(id);
+        if (id) await deleteScheduleFromServer(id);
         renderScheduleSelector();
         renderCandidateDates();
         renderTable();
@@ -814,94 +831,18 @@
     document.getElementById('deleteScheduleBtn').addEventListener('click', deleteCurrentSchedule);
     document.getElementById('scheduleSelect').addEventListener('change', (e) => {
       const app = getAppState();
-      app.activeScheduleId = e.target.value;
+      app.activeScheduleId = e.target.value || null;
       saveAppState(app).then(() => {
         renderCandidateDates();
         renderTable();
         renderCalendar();
       });
     });
-
-    // schedule selector helpers
-    function renderScheduleSelector() {
-      const select = document.getElementById('scheduleSelect');
-      if (!select) return;
-      const app = getAppState();
-      select.innerHTML = '';
-      (app.schedules || []).forEach((s) => {
-        const opt = document.createElement('option');
-        opt.value = s.id;
-        opt.textContent = s.title || s.id;
-        if (app.activeScheduleId === s.id) opt.selected = true;
-        select.appendChild(opt);
-      });
-    }
-
-    function createNewSchedule() {
-      const title = window.prompt('新しい予定のタイトルを入力してください');
-      if (!title) return;
-      const app = getAppState();
-      const id = `s_${Date.now()}`;
-      const payload = deepClone(defaultState);
-      const sched = { id, title, payload };
-      app.schedules = app.schedules || [];
-      app.schedules.push(sched);
-      app.activeScheduleId = id;
-      saveAppState(app).then(async () => {
-        await upsertScheduleToServer(sched);
-        renderScheduleSelector();
-        renderCandidateDates();
-        renderTable();
-        renderCalendar();
-      });
-    }
-
-    function deleteCurrentSchedule() {
-      const app = getAppState();
-      const id = app.activeScheduleId;
-      if (!id) return;
-      const sched = (app.schedules || []).find(s => s.id === id);
-      if (!sched) return;
-      const ok = window.confirm(`${sched.title || sched.id} を削除してもよろしいですか？`);
-      if (!ok) return;
-      app.schedules = (app.schedules || []).filter(s => s.id !== id);
-      if (!app.schedules.length) {
-        const newid = 'default';
-        app.schedules.push({ id: newid, title: 'Default', payload: deepClone(defaultState) });
-        app.activeScheduleId = newid;
-      } else {
-        app.activeScheduleId = app.schedules[0].id;
-      }
-      saveAppState(app).then(async () => {
-        await deleteScheduleFromServer(id);
-        renderScheduleSelector();
-        renderCandidateDates();
-        renderTable();
-        renderCalendar();
-      });
-    }
-
-    // wire schedule selector events
-    const sel = document.getElementById('scheduleSelect');
-    if (sel) sel.addEventListener('change', (e) => {
-      const app = getAppState();
-      app.activeScheduleId = e.target.value;
-      saveAppState(app).then(() => {
-        renderCandidateDates();
-        renderTable();
-        renderCalendar();
-      });
-    });
-    const newBtn = document.getElementById('newScheduleBtn');
-    if (newBtn) newBtn.addEventListener('click', createNewSchedule);
-    const delBtn = document.getElementById('deleteScheduleBtn');
-    if (delBtn) delBtn.addEventListener('click', deleteCurrentSchedule);
 
     // prefer per-schedule server list when available
     (async () => {
       const app = await listSchedulesFromServer();
       if (app) {
-        // use server-provided app state
         renderScheduleSelector();
         renderCandidateDates();
         renderCalendar();
