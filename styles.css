@@ -132,6 +132,79 @@ h1 {
   cursor: pointer;
 }
 
+.calendar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.calendar-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.calendar-nav {
+  border: 1px solid rgba(212, 165, 87, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(42px, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(212, 165, 87, 0.18);
+}
+
+.calendar-weekday {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  padding: 4px 0;
+}
+
+.calendar-day {
+  appearance: none;
+  border: 1px solid rgba(212, 165, 87, 0.12);
+  background: rgba(255, 255, 255, 0.01);
+  color: var(--text);
+  border-radius: 10px;
+  min-height: 42px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.calendar-day.empty {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.calendar-day.selected {
+  background: linear-gradient(180deg, rgba(212, 165, 87, 0.9), rgba(184, 132, 46, 0.9));
+  color: #1d1710;
+  border-color: transparent;
+}
+
+.bulk-register {
+  margin-top: 10px;
+  max-width: none;
+}
+
+.secondary-btn {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border: 1px solid rgba(212, 165, 87, 0.2);
+}
+
 .candidate-list {
   display: flex;
   flex-wrap: wrap;

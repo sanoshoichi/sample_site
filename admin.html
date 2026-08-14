@@ -18,13 +18,19 @@
 
     <section class="toolbar">
       <div class="date-builder">
-        <label class="field" for="candidateDate">
-          <span>候補日を追加</span>
-          <div class="inline-field">
-            <input id="candidateDate" type="date" />
-            <button id="addCandidateBtn" type="button">追加</button>
+        <div class="field">
+          <span>候補日を視覚的に選択</span>
+          <div class="calendar-controls">
+            <button type="button" id="prevMonthBtn" class="calendar-nav" aria-label="前の月">◀</button>
+            <div id="calendarLabel" class="calendar-label" aria-live="polite"></div>
+            <button type="button" id="nextMonthBtn" class="calendar-nav" aria-label="次の月">▶</button>
           </div>
-        </label>
+          <div id="calendarGrid" class="calendar-grid" aria-live="polite"></div>
+          <div class="inline-field bulk-register">
+            <button id="registerSelectedDatesBtn" type="button">選択した日を一括登録</button>
+            <button id="clearSelectedDatesBtn" type="button" class="secondary-btn">選択をクリア</button>
+          </div>
+        </div>
         <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
       </div>
     </section>
@@ -64,8 +70,15 @@
     const scheduleHead = document.getElementById('scheduleHead');
     const scheduleBody = document.getElementById('scheduleBody');
     const candidateDateList = document.getElementById('candidateDateList');
-    const candidateDateInput = document.getElementById('candidateDate');
-    const addCandidateBtn = document.getElementById('addCandidateBtn');
+    const calendarGrid = document.getElementById('calendarGrid');
+    const calendarLabel = document.getElementById('calendarLabel');
+    const prevMonthBtn = document.getElementById('prevMonthBtn');
+    const nextMonthBtn = document.getElementById('nextMonthBtn');
+    const registerSelectedDatesBtn = document.getElementById('registerSelectedDatesBtn');
+    const clearSelectedDatesBtn = document.getElementById('clearSelectedDatesBtn');
+
+    let selectedDates = [];
+    let currentCalendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     function deepClone(value) {
       return JSON.parse(JSON.stringify(value));
@@ -115,6 +128,13 @@
       return slots;
     }
 
+    function formatDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
     function renderCandidateDates() {
       const state = getState();
       candidateDateList.innerHTML = '';
@@ -148,6 +168,72 @@
           pill.appendChild(removeButton);
           candidateDateList.appendChild(pill);
         });
+    }
+
+    function renderCalendar() {
+      const monthStart = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth(), 1);
+      const monthEnd = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 0);
+      const firstWeekday = monthStart.getDay();
+      const daysInMonth = monthEnd.getDate();
+
+      calendarLabel.textContent = `${monthStart.getFullYear()}年 ${monthStart.getMonth() + 1}月`;
+      calendarGrid.innerHTML = '';
+
+      ['日', '月', '火', '水', '木', '金', '土'].forEach((weekday) => {
+        const label = document.createElement('div');
+        label.className = 'calendar-weekday';
+        label.textContent = weekday;
+        calendarGrid.appendChild(label);
+      });
+
+      for (let index = 0; index < firstWeekday; index += 1) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day empty';
+        calendarGrid.appendChild(emptyCell);
+      }
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const date = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth(), day);
+        const dateKey = formatDateKey(date);
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'calendar-day';
+        cell.textContent = String(day);
+        cell.setAttribute('aria-label', `${dateKey}を選択`);
+
+        if (selectedDates.includes(dateKey)) {
+          cell.classList.add('selected');
+        }
+
+        cell.addEventListener('click', () => {
+          if (selectedDates.includes(dateKey)) {
+            selectedDates = selectedDates.filter((value) => value !== dateKey);
+          } else {
+            selectedDates.push(dateKey);
+          }
+          renderCalendar();
+        });
+
+        calendarGrid.appendChild(cell);
+      }
+    }
+
+    function registerSelectedDates() {
+      const state = getState();
+      const newDates = [...new Set(selectedDates.filter((dateKey) => !state.candidateDates.includes(dateKey)))];
+
+      if (!newDates.length) {
+        selectedDates = [];
+        renderCalendar();
+        return;
+      }
+
+      state.candidateDates = [...state.candidateDates, ...newDates].sort();
+      saveState(state);
+      selectedDates = [];
+      renderCandidateDates();
+      renderTable();
+      renderCalendar();
     }
 
     function renderHeader(slots) {
@@ -264,20 +350,17 @@
       renderTable();
     }
 
-    function addCandidateDate() {
-      const dateString = candidateDateInput.value;
+    function addCandidateDate(dateString) {
       if (!dateString) return;
 
       const state = getState();
       if (state.candidateDates.includes(dateString)) {
-        candidateDateInput.value = '';
         return;
       }
 
       state.candidateDates.push(dateString);
       state.candidateDates.sort();
       saveState(state);
-      candidateDateInput.value = '';
       renderCandidateDates();
       renderTable();
     }
@@ -305,14 +388,24 @@
       });
     });
 
-    addCandidateBtn.addEventListener('click', addCandidateDate);
-    candidateDateInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        addCandidateDate();
-      }
+    prevMonthBtn.addEventListener('click', () => {
+      currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() - 1, 1);
+      renderCalendar();
+    });
+
+    nextMonthBtn.addEventListener('click', () => {
+      currentCalendarMonth = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+
+    registerSelectedDatesBtn.addEventListener('click', registerSelectedDates);
+    clearSelectedDatesBtn.addEventListener('click', () => {
+      selectedDates = [];
+      renderCalendar();
     });
 
     renderCandidateDates();
+    renderCalendar();
     renderTable();
   </script>
 </body>
