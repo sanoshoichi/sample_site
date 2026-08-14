@@ -12,7 +12,7 @@
       <p class="eyebrow">Admin</p>
       <h1>管理者ページ</h1>
       <nav class="page-nav">
-        <a href="index.html">参加者ページへ</a>
+        <button href="index.html">参加者ページへ</button>
       </nav>
     </header>
 
@@ -192,8 +192,21 @@
         const row = document.createElement('tr');
 
         const nameCell = document.createElement('th');
-        nameCell.textContent = person.name;
         nameCell.className = 'person-name';
+
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'person-name-wrap';
+        nameWrap.textContent = person.name;
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'person-remove';
+        removeButton.textContent = '削除';
+        removeButton.setAttribute('aria-label', `${person.name}を削除`);
+        removeButton.addEventListener('click', () => removeParticipant(person.name));
+
+        nameCell.appendChild(nameWrap);
+        nameCell.appendChild(removeButton);
         row.appendChild(nameCell);
 
         slots.forEach((slot) => {
@@ -209,6 +222,19 @@
 
         scheduleBody.appendChild(row);
       });
+    }
+
+    function removeParticipant(name) {
+      const confirmed = window.confirm(`${name} を削除してもよろしいですか？`);
+      if (!confirmed) return;
+
+      const state = getState();
+      state.participantEntries = state.participantEntries.filter((person) => person.name !== name);
+      if (state.participantDraft && state.participantDraft[name]) {
+        delete state.participantDraft[name];
+      }
+      saveState(state);
+      renderTable();
     }
 
     function addCandidateDate() {
