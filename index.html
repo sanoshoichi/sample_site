@@ -312,9 +312,6 @@
       // hide schedule controls so participant cannot switch
       const controls = document.querySelector('.schedule-controls');
       if (controls) controls.style.display = 'none';
-      // hide admin navigation so participants can't jump to admin page
-      const adminBtn = document.querySelector('.nav-button[data-target="admin.html"]');
-      if (adminBtn) adminBtn.style.display = 'none';
       // hide schedule management buttons
       const newBtn = document.getElementById('newScheduleBtn');
       if (newBtn) newBtn.style.display = 'none';
@@ -374,8 +371,11 @@
         const rows = await response.json();
         const remoteState = rows && rows[0] ? rows[0].payload : null;
 
-        if (isValidState(remoteState)) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+        // accept either legacy single-payload state or app-level state with schedules
+        if (remoteState) {
+          if (isValidState(remoteState) || (remoteState.schedules && Array.isArray(remoteState.schedules))) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+          }
         }
       } catch (error) {
         // Ignore network errors and continue using local fallback data.
@@ -713,10 +713,10 @@
       button.addEventListener('click', () => {
         const target = button.dataset.target;
         if (!target) return;
-        // prevent participants from navigating to admin page
+        // allow navigation to admin page; admin.html enforces password/token on load
         if (target === 'admin.html' && !isCurrentUserAdmin()) {
-          alert('管理者ページへは遷移できません。');
-          return;
+          const ok = window.confirm('管理者ページはパスワードが必要です。移動しますか？');
+          if (!ok) return;
         }
         window.location.href = target;
       });
@@ -736,10 +736,13 @@
     participantNameInput.value = '';
     updateActionButtonState();
     syncStateFromServer();
-    // wire schedule selector
-    document.getElementById('newScheduleBtn').addEventListener('click', createNewSchedule);
-    document.getElementById('deleteScheduleBtn').addEventListener('click', deleteCurrentSchedule);
-    document.getElementById('scheduleSelect').addEventListener('change', (e) => {
+    // wire schedule selector (only if elements exist on this page)
+    const newScheduleBtnEl = document.getElementById('newScheduleBtn');
+    if (newScheduleBtnEl) newScheduleBtnEl.addEventListener('click', createNewSchedule);
+    const deleteScheduleBtnEl = document.getElementById('deleteScheduleBtn');
+    if (deleteScheduleBtnEl) deleteScheduleBtnEl.addEventListener('click', deleteCurrentSchedule);
+    const scheduleSelectEl = document.getElementById('scheduleSelect');
+    if (scheduleSelectEl) scheduleSelectEl.addEventListener('change', (e) => {
       const app = getAppState();
       app.activeScheduleId = e.target.value;
       saveAppState(app).then(() => {
@@ -750,11 +753,9 @@
     // hide schedule management and admin navigation buttons for non-admins
     const newBtn = document.getElementById('newScheduleBtn');
     const delBtn = document.getElementById('deleteScheduleBtn');
-    const adminNavBtn = document.querySelector('.nav-button[data-target="admin.html"]');
     if (!isCurrentUserAdmin()) {
       if (newBtn) newBtn.style.display = 'none';
       if (delBtn) delBtn.style.display = 'none';
-      if (adminNavBtn) adminNavBtn.style.display = 'none';
     }
     // apply schedule id from URL if present (participant link)
     const forced = applyScheduleFromUrl();

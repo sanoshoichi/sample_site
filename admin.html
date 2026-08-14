@@ -8,7 +8,10 @@
   <style>
     /* highlight already-registered candidate dates */
     .calendar-day.registered {
-      background: #fff59d; /* light yellow */
+      background: linear-gradient(180deg, rgba(212, 165, 87, 0.92), rgba(184, 132, 46, 0.92));
+      color: #1d1710;
+      border-color: rgba(255, 233, 164, 0.8);
+      box-shadow: 0 0 0 2px rgba(255, 214, 122, 0.32);
     }
   </style>
 </head>
@@ -283,8 +286,11 @@
         const rows = await response.json();
         const remoteState = rows && rows[0] ? rows[0].payload : null;
 
-        if (isValidState(remoteState)) {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+        // accept either legacy single-payload state or app-level state with schedules
+        if (remoteState) {
+          if (isValidState(remoteState) || (remoteState.schedules && Array.isArray(remoteState.schedules))) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+          }
         }
       } catch (error) {
         // Ignore network errors and continue using local fallback data.
