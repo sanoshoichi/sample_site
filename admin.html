@@ -285,7 +285,10 @@
         });
         if (!res.ok) return null;
         const rows = await res.json();
-        const app = { schedules: (rows || []).map(r => ({ id: r.id, title: r.title || r.id, payload: r.payload || deepClone(defaultState) })), activeScheduleId: (rows && rows[0] && rows[0].id) || 'default' };
+        const app = {
+          schedules: (rows || []).map((r) => ({ id: r.id, title: r.title || r.id, payload: r.payload || deepClone(defaultState) })),
+          activeScheduleId: (rows && rows[0] && rows[0].id) || null
+        };
         migrateSlots(app);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
         return app;
@@ -417,6 +420,11 @@
     }
 
     function renderCandidateDates() {
+      if (!hasActiveSchedule()) {
+        candidateDateList.innerHTML = '<p class="empty-info">-</p>';
+        return;
+      }
+
       const state = getState();
       candidateDateList.innerHTML = '';
 
@@ -452,6 +460,12 @@
     }
 
     function renderCalendar() {
+      if (!hasActiveSchedule()) {
+        calendarLabel.textContent = '予定を選択してください';
+        calendarGrid.innerHTML = '';
+        return;
+      }
+
       const monthStart = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth(), 1);
       const monthEnd = new Date(currentCalendarMonth.getFullYear(), currentCalendarMonth.getMonth() + 1, 0);
       const firstWeekday = monthStart.getDay();
@@ -570,6 +584,12 @@
     }
 
     function renderTable() {
+      if (!hasActiveSchedule()) {
+        scheduleHead.innerHTML = '';
+        scheduleBody.innerHTML = '<tr><td class="empty-state" colspan="2">-</td></tr>';
+        return;
+      }
+
       const state = getState();
       const slots = buildSlots(state.candidateDates);
       scheduleBody.innerHTML = '';
@@ -647,6 +667,8 @@
     }
 
     function removeParticipant(name) {
+      if (!hasActiveSchedule()) return;
+
       const confirmed = window.confirm(`${name} を削除してもよろしいですか？`);
       if (!confirmed) return;
 
@@ -660,7 +682,7 @@
     }
 
     function addCandidateDate(dateString) {
-      if (!dateString) return;
+      if (!dateString || !hasActiveSchedule()) return;
 
       const state = getState();
       if (state.candidateDates.includes(dateString)) {
@@ -675,6 +697,8 @@
     }
 
     function removeCandidateDate(dateString) {
+      if (!hasActiveSchedule()) return;
+
       const state = getState();
       state.candidateDates = state.candidateDates.filter((date) => date !== dateString);
       state.participantEntries.forEach((person) => {
