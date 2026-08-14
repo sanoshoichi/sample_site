@@ -832,17 +832,18 @@
       app.schedules = app.schedules || [];
       app.schedules.push(sched);
       app.activeScheduleId = id;
-      saveAppState(app).then(async () => {
-        await upsertScheduleToServer(sched);
-        renderScheduleSelector();
-        renderCandidateDates();
-        renderTable();
-        renderCalendar();
-        const url = new URL(window.location.href);
-        url.searchParams.set('admin_token', ADMIN_TOKEN);
-        try { navigator.clipboard.writeText(url.toString()); } catch (e) {}
-        alert('新しい予定を作成しました。共有用の管理URL（クリップボードにコピー）を発行しました。');
-      });
+      // persist locally immediately
+      saveAppState(app);
+      // fire-and-forget server upsert to avoid blocking UI on network issues
+      upsertScheduleToServer(sched).catch(() => {});
+      renderScheduleSelector();
+      renderCandidateDates();
+      renderTable();
+      renderCalendar();
+      const url = new URL(window.location.href);
+      url.searchParams.set('admin_token', ADMIN_TOKEN);
+      try { navigator.clipboard.writeText(url.toString()); } catch (e) {}
+      alert('新しい予定を作成しました。共有用の管理URL（クリップボードにコピー）を発行しました。');
     }
 
     function deleteCurrentSchedule() {
@@ -856,13 +857,14 @@
 
       app.schedules = (app.schedules || []).filter((s) => s.id !== id);
       app.activeScheduleId = app.schedules.length ? app.schedules[0].id : null;
-      saveAppState(app).then(async () => {
-        if (id) await deleteScheduleFromServer(id);
-        renderScheduleSelector();
-        renderCandidateDates();
-        renderTable();
-        renderCalendar();
-      });
+      // persist locally immediately
+      saveAppState(app);
+      // fire-and-forget server delete to avoid blocking UI on network issues
+      if (id) deleteScheduleFromServer(id).catch(() => {});
+      renderScheduleSelector();
+      renderCandidateDates();
+      renderTable();
+      renderCalendar();
     }
 
     document.getElementById('newScheduleBtn').addEventListener('click', createNewSchedule);
