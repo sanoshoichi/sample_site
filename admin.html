@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>管理者ページ</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* highlight already-registered candidate dates */
+    .calendar-day.registered {
+      background: #fff59d; /* light yellow */
+    }
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -24,6 +30,12 @@
             <button type="button" id="prevMonthBtn" class="calendar-nav" aria-label="前の月">◀</button>
             <div id="calendarLabel" class="calendar-label" aria-live="polite"></div>
             <button type="button" id="nextMonthBtn" class="calendar-nav" aria-label="次の月">▶</button>
+          </div>
+          <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+            <label style="color:var(--muted);">予定切替</label>
+            <select id="scheduleSelect"></select>
+            <button id="newScheduleBtn" type="button" class="nav-button">新規予定</button>
+            <button id="deleteScheduleBtn" type="button" class="secondary-btn">削除</button>
           </div>
           <div id="calendarGrid" class="calendar-grid" aria-live="polite"></div>
           <div class="inline-field bulk-register">
