@@ -199,6 +199,29 @@
         });
     }
 
+    function finishEditing() {
+      const state = getState();
+      const targetName = activeEditTarget;
+
+      if (!targetName) {
+        return;
+      }
+
+      const draftSlots = [...new Set(state.participantDraft[targetName] || [])];
+      const entry = state.participantEntries.find((person) => person.name === targetName);
+
+      if (entry) {
+        entry.slots = draftSlots;
+      }
+
+      delete state.participantDraft[targetName];
+      activeEditTarget = null;
+      participantNameInput.value = targetName;
+      saveState(state);
+      updateActionButtonState();
+      renderTable();
+    }
+
     function renderHeader(state) {
       scheduleHead.innerHTML = '';
       const users = [...state.participantEntries.map((person) => person.name)];
@@ -228,9 +251,15 @@
         const editButton = document.createElement('button');
         editButton.type = 'button';
         editButton.className = activeEditTarget === userName ? 'row-edit-btn active' : 'row-edit-btn';
-        editButton.textContent = activeEditTarget === userName ? '編集中' : '編集';
+        editButton.textContent = activeEditTarget === userName ? '完了' : '編集';
         editButton.addEventListener('click', (event) => {
           event.stopPropagation();
+
+          if (activeEditTarget === userName) {
+            finishEditing();
+            return;
+          }
+
           activeEditTarget = userName;
           participantNameInput.value = userName;
           updateActionButtonState();
@@ -347,6 +376,11 @@
 
       if (!targetName) {
         participantNameInput.focus();
+        return;
+      }
+
+      if (activeEditTarget) {
+        finishEditing();
         return;
       }
 

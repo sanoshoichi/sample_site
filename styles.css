@@ -348,9 +348,10 @@ h2 {
 }
 
 .time-header {
-  font-size: 0.72rem;
-  min-width: 64px;
-  padding: 8px 6px;
+  font-size: 0.68rem;
+  min-width: 52px;
+  width: 52px;
+  padding: 8px 4px;
 }
 
 .name-col,
