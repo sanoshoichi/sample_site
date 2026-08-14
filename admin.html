@@ -311,9 +311,15 @@
     function renderHeader(state) {
       scheduleHead.innerHTML = '';
       const headerRow = document.createElement('tr');
+
+      const dateLabelCell = document.createElement('th');
+      dateLabelCell.textContent = '日付';
+      dateLabelCell.className = 'date-col';
+      headerRow.appendChild(dateLabelCell);
+
       const timeLabelCell = document.createElement('th');
-      timeLabelCell.textContent = '日時';
-      timeLabelCell.className = 'name-col';
+      timeLabelCell.textContent = '時間';
+      timeLabelCell.className = 'time-col';
       headerRow.appendChild(timeLabelCell);
 
       state.participantEntries.forEach((person) => {
@@ -362,26 +368,52 @@
 
       renderHeader(state);
 
+      const dateGroups = new Map();
+      const dateOrder = [];
+
       slots.forEach((slot) => {
-        const row = document.createElement('tr');
-        const slotLabel = document.createElement('th');
-        slotLabel.className = 'time-header';
-        slotLabel.textContent = `${formatDate(slot.id.slice(0, 10))} ${slot.id.slice(11, 16)}`;
-        slotLabel.title = slot.label;
-        row.appendChild(slotLabel);
+        const dateKey = slot.id.slice(0, 10);
+        if (!dateGroups.has(dateKey)) {
+          dateGroups.set(dateKey, []);
+          dateOrder.push(dateKey);
+        }
+        dateGroups.get(dateKey).push(slot);
+      });
 
-        state.participantEntries.forEach((person) => {
-          const cell = document.createElement('td');
-          const selected = person.slots.includes(slot.id);
+      dateOrder.forEach((dateKey) => {
+        const daySlots = dateGroups.get(dateKey);
 
-          cell.className = selected ? 'slot selected' : 'slot';
-          cell.textContent = selected ? '○' : '';
-          cell.title = `${person.name} ${slot.label}`;
-          cell.style.cursor = 'default';
-          row.appendChild(cell);
+        daySlots.forEach((slot, index) => {
+          const row = document.createElement('tr');
+
+          if (index === 0) {
+            const dateCell = document.createElement('th');
+            dateCell.className = 'date-cell';
+            dateCell.rowSpan = daySlots.length;
+            dateCell.textContent = formatDate(dateKey);
+            dateCell.title = dateKey;
+            row.appendChild(dateCell);
+          }
+
+          const timeCell = document.createElement('th');
+          timeCell.className = 'time-header';
+          timeCell.textContent = slot.id.slice(11, 16);
+          timeCell.title = slot.label;
+          row.appendChild(timeCell);
+
+          state.participantEntries.forEach((person) => {
+            const cell = document.createElement('td');
+            const selected = person.slots.includes(slot.id);
+
+            cell.className = selected ? 'slot selected' : 'slot';
+            cell.textContent = selected ? '○' : '';
+            cell.title = `${person.name} ${slot.label}`;
+            cell.style.cursor = 'default';
+            row.appendChild(cell);
+          });
+
+          scheduleBody.appendChild(row);
         });
-
-        scheduleBody.appendChild(row);
       });
     }
 

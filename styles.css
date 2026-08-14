@@ -347,11 +347,26 @@ h2 {
   min-width: 84px;
 }
 
+.date-col,
+.date-cell {
+  position: sticky;
+  left: 0;
+  background: rgba(31, 28, 25, 0.98);
+  color: var(--text);
+  min-width: 80px;
+  width: 80px;
+  text-align: center;
+  padding: 12px 8px;
+  font-weight: 700;
+}
+
+.time-col,
 .time-header {
   font-size: 0.68rem;
   min-width: 52px;
   width: 52px;
   padding: 8px 4px;
+  text-align: center;
 }
 
 .name-col,

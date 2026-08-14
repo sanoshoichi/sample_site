@@ -248,9 +248,14 @@
       }
 
       const headerRow = document.createElement('tr');
+      const dateLabelCell = document.createElement('th');
+      dateLabelCell.textContent = '日付';
+      dateLabelCell.className = 'date-col';
+      headerRow.appendChild(dateLabelCell);
+
       const timeLabelCell = document.createElement('th');
-      timeLabelCell.textContent = '日時';
-      timeLabelCell.className = 'name-col';
+      timeLabelCell.textContent = '時間';
+      timeLabelCell.className = 'time-col';
       headerRow.appendChild(timeLabelCell);
 
       users.forEach((userName) => {
@@ -300,8 +305,12 @@
 
     function getCurrentParticipantSlots(name, state) {
       const entry = state.participantEntries.find((person) => person.name === name) || { slots: [] };
-      const draft = state.participantDraft[name] || [];
-      return [...new Set([...entry.slots, ...draft])];
+
+      if (activeEditTarget === name && state.participantDraft[name]) {
+        return [...new Set(state.participantDraft[name])];
+      }
+
+      return [...new Set(entry.slots)];
     }
 
     function renderTable() {
@@ -329,46 +338,71 @@
 
       renderHeader(state);
 
+      const dateGroups = new Map();
+      const dateOrder = [];
+
       slots.forEach((slot) => {
-        const row = document.createElement('tr');
-        const slotLabel = document.createElement('th');
-        slotLabel.className = 'time-header';
-        slotLabel.textContent = `${formatDate(slot.id.slice(0, 10))} ${slot.id.slice(11, 16)}`;
-        slotLabel.title = slot.label;
-        row.appendChild(slotLabel);
+        const dateKey = slot.id.slice(0, 10);
+        if (!dateGroups.has(dateKey)) {
+          dateGroups.set(dateKey, []);
+          dateOrder.push(dateKey);
+        }
+        dateGroups.get(dateKey).push(slot);
+      });
 
-        users.forEach((userName) => {
-          const cell = document.createElement('td');
-          const person = state.participantEntries.find((entry) => entry.name === userName) || { slots: [] };
-          const displaySlots = getCurrentParticipantSlots(userName, state);
-          const selected = displaySlots.includes(slot.id);
-          const canEdit = activeEditTarget === userName;
+      dateOrder.forEach((dateKey) => {
+        const daySlots = dateGroups.get(dateKey);
 
-          cell.className = selected ? 'slot selected' : 'slot';
-          cell.dataset.person = userName;
-          cell.dataset.slotId = slot.id;
-          cell.setAttribute('role', 'button');
-          cell.setAttribute('tabindex', '0');
-          cell.textContent = selected ? '○' : '';
-          cell.title = `${userName} ${slot.label}`;
+        daySlots.forEach((slot, index) => {
+          const row = document.createElement('tr');
 
-          if (canEdit) {
-            const handleSelection = () => toggleDraftSlot(userName, slot.id);
-            cell.addEventListener('click', handleSelection);
-            cell.addEventListener('keydown', (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                handleSelection();
-              }
-            });
-          } else {
-            cell.style.cursor = 'default';
+          if (index === 0) {
+            const dateCell = document.createElement('th');
+            dateCell.className = 'date-cell';
+            dateCell.rowSpan = daySlots.length;
+            dateCell.textContent = formatDate(dateKey);
+            dateCell.title = dateKey;
+            row.appendChild(dateCell);
           }
 
-          row.appendChild(cell);
-        });
+          const timeCell = document.createElement('th');
+          timeCell.className = 'time-header';
+          timeCell.textContent = slot.id.slice(11, 16);
+          timeCell.title = slot.label;
+          row.appendChild(timeCell);
 
-        scheduleBody.appendChild(row);
+          users.forEach((userName) => {
+            const cell = document.createElement('td');
+            const displaySlots = getCurrentParticipantSlots(userName, state);
+            const selected = displaySlots.includes(slot.id);
+            const canEdit = activeEditTarget === userName;
+
+            cell.className = selected ? 'slot selected' : 'slot';
+            cell.dataset.person = userName;
+            cell.dataset.slotId = slot.id;
+            cell.setAttribute('role', 'button');
+            cell.setAttribute('tabindex', '0');
+            cell.textContent = selected ? '○' : '';
+            cell.title = `${userName} ${slot.label}`;
+
+            if (canEdit) {
+              const handleSelection = () => toggleDraftSlot(userName, slot.id);
+              cell.addEventListener('click', handleSelection);
+              cell.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleSelection();
+                }
+              });
+            } else {
+              cell.style.cursor = 'default';
+            }
+
+            row.appendChild(cell);
+          });
+
+          scheduleBody.appendChild(row);
+        });
       });
     }
 
