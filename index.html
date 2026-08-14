@@ -16,16 +16,6 @@
       </nav>
     </header>
 
-    <section class="toolbar">
-      <label class="field" for="participantName">
-        <span>参加者名</span>
-        <div class="inline-field">
-          <input id="participantName" type="text" placeholder="例：山田 太郎" />
-          <button id="saveAvailabilityBtn" type="button">登録</button>
-        </div>
-      </label>
-    </section>
-
     <section class="panel">
       <div class="panel-head">
         <div>
@@ -44,17 +34,30 @@
           <tbody id="scheduleBody"></tbody>
         </table>
       </div>
+
+      <div class="participant-actions">
+        <label class="field" for="participantName">
+          <span>参加者名</span>
+          <div class="inline-field">
+            <input id="participantName" type="text" placeholder="例：山田 太郎" />
+            <button id="editParticipantBtn" type="button" class="secondary-btn">編集</button>
+            <button id="saveAvailabilityBtn" type="button">登録</button>
+          </div>
+        </label>
+      </div>
     </section>
   </div>
 
   <script>
     const STORAGE_KEY = 'scheduleTableData';
+    const API_ENDPOINT = '/api/state';
     const HOUR_START = 9;
     const HOUR_END = 20;
 
     const defaultState = {
       candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
       participantEntries: [
+        { name: 'TESTUSER', slots: [] },
         { name: '山田', slots: ['2026-08-15T10:00:00', '2026-08-15T11:00:00', '2026-08-17T13:00:00'] },
         { name: '佐藤', slots: ['2026-08-15T09:00:00', '2026-08-17T14:00:00', '2026-08-20T15:00:00'] },
         { name: '鈴木', slots: ['2026-08-17T10:00:00', '2026-08-17T11:00:00', '2026-08-20T12:00:00'] }
@@ -66,10 +69,21 @@
     const scheduleBody = document.getElementById('scheduleBody');
     const candidateDateList = document.getElementById('candidateDateList');
     const participantNameInput = document.getElementById('participantName');
+    const editParticipantBtn = document.getElementById('editParticipantBtn');
     const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
+
+    function updateActionButtonState() {
+      const hasName = participantNameInput.value.trim().length > 0;
+      editParticipantBtn.disabled = !hasName;
+      saveAvailabilityBtn.disabled = !hasName;
+    }
 
     function deepClone(value) {
       return JSON.parse(JSON.stringify(value));
+    }
+
+    function isValidState(value) {
+      return value && Array.isArray(value.candidateDates) && Array.isArray(value.participantEntries);
     }
 
     function getState() {
@@ -78,7 +92,7 @@
 
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.candidateDates) && Array.isArray(parsed.participantEntries)) {
+        if (isValidState(parsed)) {
           return parsed;
         }
       } catch (error) {
@@ -88,8 +102,34 @@
       return deepClone(defaultState);
     }
 
-    function saveState(state) {
+    async function syncStateFromServer() {
+      try {
+        const response = await fetch(API_ENDPOINT, { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const remoteState = await response.json();
+        if (isValidState(remoteState)) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+        }
+      } catch (error) {
+        // Ignore network errors and continue using local fallback data.
+      }
+    }
+
+    async function saveState(state) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+      try {
+        await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(state)
+        });
+      } catch (error) {
+        // Ignore network issues and keep local fallback behavior.
+      }
     }
 
     function formatDate(dateString) {
@@ -281,6 +321,26 @@
       renderTable();
     }
 
+    function editParticipant() {
+      const state = getState();
+      const name = participantNameInput.value.trim();
+
+      if (!name) {
+        participantNameInput.focus();
+        return;
+      }
+
+      const entry = state.participantEntries.find((person) => person.name === name);
+      if (!entry) {
+        alert('その名前はまだ登録されていません。新規登録は「登録」ボタンを使ってください。');
+        return;
+      }
+
+      state.participantDraft[name] = [...entry.slots];
+      saveState(state);
+      renderTable();
+    }
+
     function saveAvailability() {
       const state = getState();
       const name = participantNameInput.value.trim();
@@ -292,9 +352,21 @@
       const draftSlots = state.participantDraft[name] || [];
       const entry = state.participantEntries.find((person) => person.name === name);
 
+      if (entry && !state.participantDraft[name]) {
+        alert('この名前はすでに登録されています。編集ボタンから修正してください。');
+        participantNameInput.focus();
+        return;
+      }
+
       if (entry) {
-        entry.slots = [...new Set([...entry.slots, ...draftSlots])];
+        entry.slots = [...new Set(draftSlots)];
       } else {
+        if (state.participantEntries.some((person) => person.name === name)) {
+          alert('同じ名前は登録できません。');
+          participantNameInput.focus();
+          return;
+        }
+
         state.participantEntries.push({ name, slots: [...draftSlots] });
       }
 
@@ -312,14 +384,25 @@
       });
     });
 
+    editParticipantBtn.addEventListener('click', editParticipant);
     saveAvailabilityBtn.addEventListener('click', saveAvailability);
     participantNameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
-        saveAvailability();
+        if (event.shiftKey) {
+          editParticipant();
+        } else {
+          saveAvailability();
+        }
       }
     });
-    participantNameInput.addEventListener('input', renderTable);
+    participantNameInput.addEventListener('input', () => {
+      updateActionButtonState();
+      renderTable();
+    });
 
+    participantNameInput.value = 'TESTUSER';
+    updateActionButtonState();
+    syncStateFromServer();
     renderCandidateDates();
     renderTable();
   </script>

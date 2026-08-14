@@ -54,15 +54,14 @@
 
   <script>
     const STORAGE_KEY = 'scheduleTableData';
+    const API_ENDPOINT = '/api/state';
     const HOUR_START = 9;
     const HOUR_END = 20;
 
     const defaultState = {
       candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
       participantEntries: [
-        { name: '山田', slots: ['2026-08-15T10:00:00', '2026-08-15T11:00:00', '2026-08-17T13:00:00'] },
-        { name: '佐藤', slots: ['2026-08-15T09:00:00', '2026-08-17T14:00:00', '2026-08-20T15:00:00'] },
-        { name: '鈴木', slots: ['2026-08-17T10:00:00', '2026-08-17T11:00:00', '2026-08-20T12:00:00'] }
+        { name: 'TESTUSER', slots: [] }
       ],
       participantDraft: {}
     };
@@ -84,13 +83,17 @@
       return JSON.parse(JSON.stringify(value));
     }
 
+    function isValidState(value) {
+      return value && Array.isArray(value.candidateDates) && Array.isArray(value.participantEntries);
+    }
+
     function getState() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return deepClone(defaultState);
 
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.candidateDates) && Array.isArray(parsed.participantEntries)) {
+        if (isValidState(parsed)) {
           return parsed;
         }
       } catch (error) {
@@ -100,8 +103,34 @@
       return deepClone(defaultState);
     }
 
-    function saveState(state) {
+    async function syncStateFromServer() {
+      try {
+        const response = await fetch(API_ENDPOINT, { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const remoteState = await response.json();
+        if (isValidState(remoteState)) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
+        }
+      } catch (error) {
+        // Ignore network errors and continue using local fallback data.
+      }
+    }
+
+    async function saveState(state) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+
+      try {
+        await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(state)
+        });
+      } catch (error) {
+        // Ignore network issues and keep local fallback behavior.
+      }
     }
 
     function formatDate(dateString) {
@@ -405,6 +434,7 @@
       renderCalendar();
     });
 
+    syncStateFromServer();
     renderCandidateDates();
     renderCalendar();
     renderTable();
