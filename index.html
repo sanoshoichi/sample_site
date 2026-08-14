@@ -3,225 +3,313 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>時間調整アプリ</title>
+  <title>予定調整表</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
-    <main class="panel">
-      <div class="panel-header">
-        <p class="eyebrow">Schedule</p>
-        <h1>1時間単位で調整</h1>
+    <header class="page-header">
+      <p class="eyebrow">Schedule</p>
+      <h1>日程調整表</h1>
+    </header>
+
+    <section class="toolbar">
+      <div class="date-builder">
+        <label class="field" for="candidateDate">
+          <span>候補日を追加</span>
+          <div class="inline-field">
+            <input id="candidateDate" type="date" />
+            <button id="addCandidateBtn" type="button">追加</button>
+          </div>
+        </label>
+        <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
       </div>
 
-      <form id="scheduleForm">
-        <div class="field-group">
-          <label for="name">名前</label>
-          <input id="name" name="name" type="text" placeholder="例：山田 太郎" required />
+      <label class="field" for="participantName">
+        <span>参加者を追加</span>
+        <div class="inline-field">
+          <input id="participantName" type="text" placeholder="例：山田 太郎" />
+          <button id="addPersonBtn" type="button">追加</button>
         </div>
+      </label>
+    </section>
 
-        <div class="field-group">
-          <label for="date">日付</label>
-          <input id="date" name="date" type="date" required />
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="mini-label">候補日程</p>
+          <h2>都合の良い日時を選択</h2>
         </div>
+      </div>
 
-        <div class="field-group">
-          <label>空いている時間</label>
-          <div class="range-box">
-            <div class="range-header">
-              <span>選択中</span>
-              <strong id="selectedRangeText">未選択</strong>
-            </div>
-
-            <div class="hour-grid" id="hourGrid" aria-label="時間候補"></div>
-
-            <div class="slider-group">
-              <label for="startHour">開始</label>
-              <input id="startHour" type="range" min="9" max="20" step="1" value="10" />
-              <label for="endHour">終了</label>
-              <input id="endHour" type="range" min="10" max="21" step="1" value="13" />
-            </div>
-          </div>
-        </div>
-
-        <div class="field-group">
-          <label for="comment">コメント</label>
-          <textarea id="comment" name="comment" rows="3" placeholder="例：午後の打ち合わせ希望です"></textarea>
-        </div>
-
-        <button type="submit">登録する</button>
-      </form>
-
-      <section class="history">
-        <div class="history-header">
-          <h2>保存済み予定</h2>
-        </div>
-        <ul id="entriesList" aria-live="polite"></ul>
-      </section>
-    </main>
+      <div class="schedule-wrap">
+        <table class="schedule-table" aria-label="予定調整表">
+          <thead id="scheduleHead"></thead>
+          <tbody id="scheduleBody"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
 
   <script>
-    const STORAGE_KEY = 'scheduleEntries';
-    const hourLabels = [];
+    const STORAGE_KEY = 'scheduleTableData';
+    const HOUR_START = 9;
+    const HOUR_END = 20;
 
-    for (let hour = 9; hour <= 21; hour++) {
-      const value = hour.toString().padStart(2, '0') + ':00';
-      hourLabels.push(value);
-    }
+    const defaultState = {
+      candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
+      people: [
+        { name: '山田', slots: ['2026-08-15T10:00:00', '2026-08-15T11:00:00', '2026-08-17T13:00:00'] },
+        { name: '佐藤', slots: ['2026-08-15T09:00:00', '2026-08-17T14:00:00', '2026-08-20T15:00:00'] },
+        { name: '鈴木', slots: ['2026-08-17T10:00:00', '2026-08-17T11:00:00', '2026-08-20T12:00:00'] }
+      ]
+    };
 
-    const form = document.getElementById('scheduleForm');
-    const nameInput = document.getElementById('name');
-    const dateInput = document.getElementById('date');
-    const commentInput = document.getElementById('comment');
-    const startHourInput = document.getElementById('startHour');
-    const endHourInput = document.getElementById('endHour');
-    const hourGrid = document.getElementById('hourGrid');
-    const selectedRangeText = document.getElementById('selectedRangeText');
-    const entriesList = document.getElementById('entriesList');
+    const scheduleHead = document.getElementById('scheduleHead');
+    const scheduleBody = document.getElementById('scheduleBody');
+    const candidateDateList = document.getElementById('candidateDateList');
+    const participantNameInput = document.getElementById('participantName');
+    const candidateDateInput = document.getElementById('candidateDate');
+    const addPersonBtn = document.getElementById('addPersonBtn');
+    const addCandidateBtn = document.getElementById('addCandidateBtn');
 
-    function formatHourValue(hour) {
-      return `${String(hour).padStart(2, '0')}:00`;
-    }
+    function getState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return structuredClone(defaultState);
 
-    function getRangeText(startHour, endHour) {
-      return `${formatHourValue(startHour)} 〜 ${formatHourValue(endHour)}`;
-    }
-
-    function ensureValidRange() {
-      let start = Number(startHourInput.value);
-      let end = Number(endHourInput.value);
-
-      if (start >= end) {
-        if (document.activeElement === endHourInput) {
-          start = end - 1;
-          startHourInput.value = start;
-        } else {
-          end = start + 1;
-          endHourInput.value = end;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.candidateDates) && Array.isArray(parsed.people)) {
+          return parsed;
         }
+      } catch (error) {
+        // Ignore invalid state and fall back to defaults.
       }
 
-      return { start, end };
+      return structuredClone(defaultState);
     }
 
-    function updateVisualRange() {
-      const { start, end } = ensureValidRange();
-      selectedRangeText.textContent = getRangeText(start, end);
+    function saveState(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
 
-      const hourCells = [...hourGrid.children];
-      hourCells.forEach((cell) => {
-        const hour = Number(cell.dataset.hour);
-        const selected = hour >= start && hour < end;
-        cell.classList.toggle('selected', selected);
+    function formatDate(dateString) {
+      const date = new Date(`${dateString}T00:00:00`);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    }
+
+    function buildSlots(candidateDates) {
+      const slots = [];
+
+      candidateDates
+        .slice()
+        .sort()
+        .forEach((dateString) => {
+          for (let hour = HOUR_START; hour <= HOUR_END; hour += 1) {
+            const iso = `${dateString}T${String(hour).padStart(2, '0')}:00:00`;
+            slots.push({
+              id: iso,
+              label: `${formatDate(dateString)} ${String(hour).padStart(2, '0')}:00`
+            });
+          }
+        });
+
+      return slots;
+    }
+
+    function renderCandidateDates() {
+      const state = getState();
+      candidateDateList.innerHTML = '';
+
+      if (!state.candidateDates.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-info';
+        empty.textContent = '候補日がまだありません';
+        candidateDateList.appendChild(empty);
+        return;
+      }
+
+      state.candidateDates
+        .slice()
+        .sort()
+        .forEach((dateString) => {
+          const pill = document.createElement('button');
+          pill.type = 'button';
+          pill.className = 'candidate-pill';
+          pill.textContent = formatDate(dateString);
+
+          const removeButton = document.createElement('span');
+          removeButton.className = 'candidate-remove';
+          removeButton.textContent = '×';
+          removeButton.setAttribute('aria-label', `${dateString}を削除`);
+          removeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            removeCandidateDate(dateString);
+          });
+
+          pill.appendChild(removeButton);
+          pill.addEventListener('click', () => {
+            candidateDateInput.value = dateString;
+          });
+
+          candidateDateList.appendChild(pill);
+        });
+    }
+
+    function renderHeader(slots) {
+      scheduleHead.innerHTML = '';
+      const row = document.createElement('tr');
+
+      const nameCell = document.createElement('th');
+      nameCell.textContent = '名前';
+      nameCell.className = 'name-col';
+      row.appendChild(nameCell);
+
+      slots.forEach((slot) => {
+        const th = document.createElement('th');
+        th.textContent = slot.label;
+        th.title = slot.label;
+        row.appendChild(th);
+      });
+
+      scheduleHead.appendChild(row);
+    }
+
+    function renderTable() {
+      const state = getState();
+      const slots = buildSlots(state.candidateDates);
+      scheduleBody.innerHTML = '';
+
+      if (!slots.length) {
+        scheduleHead.innerHTML = '';
+        const row = document.createElement('tr');
+        const empty = document.createElement('td');
+        empty.colSpan = 2;
+        empty.className = 'empty-state';
+        empty.textContent = '候補日を追加すると、ここに予定表が表示されます';
+        row.appendChild(empty);
+        scheduleBody.appendChild(row);
+        return;
+      }
+
+      renderHeader(slots);
+
+      state.people.forEach((person) => {
+        const row = document.createElement('tr');
+
+        const nameCell = document.createElement('th');
+        nameCell.textContent = person.name;
+        nameCell.className = 'person-name';
+        row.appendChild(nameCell);
+
+        slots.forEach((slot) => {
+          const cell = document.createElement('td');
+          const selected = person.slots.includes(slot.id);
+
+          cell.className = selected ? 'slot selected' : 'slot';
+          cell.dataset.person = person.name;
+          cell.dataset.slotId = slot.id;
+          cell.setAttribute('role', 'button');
+          cell.setAttribute('tabindex', '0');
+          cell.textContent = selected ? '○' : '';
+          cell.title = `${person.name} ${slot.label}`;
+
+          const handleSelection = () => toggleSlot(person.name, slot.id);
+          cell.addEventListener('click', handleSelection);
+          cell.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              handleSelection();
+            }
+          });
+
+          row.appendChild(cell);
+        });
+
+        scheduleBody.appendChild(row);
       });
     }
 
-    function renderHourGrid() {
-      hourGrid.innerHTML = '';
+    function toggleSlot(personName, slotId) {
+      const state = getState();
+      const person = state.people.find((entry) => entry.name === personName);
+      if (!person) return;
 
-      for (let hour = 9; hour <= 21; hour++) {
-        const cell = document.createElement('button');
-        cell.type = 'button';
-        cell.className = 'hour-cell';
-        cell.dataset.hour = hour;
-        cell.textContent = formatHourValue(hour);
-        cell.addEventListener('click', () => {
-          const currentStart = Number(startHourInput.value);
-          const currentEnd = Number(endHourInput.value);
-
-          if (hour >= currentStart && hour < currentEnd) {
-            startHourInput.value = hour;
-            endHourInput.value = Math.min(hour + 1, 21);
-          } else {
-            startHourInput.value = hour;
-            endHourInput.value = Math.min(hour + 2, 21);
-          }
-
-          updateVisualRange();
-        });
-        hourGrid.appendChild(cell);
+      const slotIndex = person.slots.indexOf(slotId);
+      if (slotIndex >= 0) {
+        person.slots.splice(slotIndex, 1);
+      } else {
+        person.slots.push(slotId);
       }
 
-      updateVisualRange();
+      saveState(state);
+      renderTable();
     }
 
-    function getEntries() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }
+    function addPerson() {
+      const value = participantNameInput.value.trim();
+      if (!value) return;
 
-    function saveEntries(entries) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    }
-
-    function renderEntries() {
-      const entries = getEntries();
-      entriesList.innerHTML = '';
-
-      if (!entries.length) {
-        const empty = document.createElement('li');
-        empty.className = 'empty-state';
-        empty.textContent = 'まだ登録がありません';
-        entriesList.appendChild(empty);
+      const state = getState();
+      if (state.people.some((person) => person.name === value)) {
+        participantNameInput.value = '';
+        participantNameInput.focus();
         return;
       }
 
-      entries
-        .slice()
-        .reverse()
-        .forEach((entry) => {
-          const item = document.createElement('li');
-          item.className = 'entry-item';
-          item.innerHTML = `
-            <div class="entry-meta">
-              <strong>${entry.name}</strong>
-              <span>${entry.date}</span>
-            </div>
-            <p>${entry.comment || 'コメントなし'}</p>
-            <span class="time-tag">${getRangeText(entry.startHour, entry.endHour)}</span>
-          `;
-          entriesList.appendChild(item);
-        });
+      state.people.push({ name: value, slots: [] });
+      saveState(state);
+      participantNameInput.value = '';
+      renderTable();
+      participantNameInput.focus();
     }
 
-    form.addEventListener('submit', (event) => {
-      event.preventDefault();
+    function addCandidateDate() {
+      const dateString = candidateDateInput.value;
+      if (!dateString) return;
 
-      const startHour = Number(startHourInput.value);
-      const endHour = Number(endHourInput.value);
-      const entry = {
-        id: Date.now(),
-        name: nameInput.value.trim(),
-        date: dateInput.value,
-        startHour,
-        endHour,
-        comment: commentInput.value.trim()
-      };
+      const state = getState();
 
-      if (!entry.name || !entry.date) {
+      if (state.candidateDates.includes(dateString)) {
+        candidateDateInput.value = '';
         return;
       }
 
-      const entries = getEntries();
-      entries.push(entry);
-      saveEntries(entries);
-      renderEntries();
-      form.reset();
+      state.candidateDates.push(dateString);
+      state.candidateDates.sort();
+      saveState(state);
+      candidateDateInput.value = '';
+      renderCandidateDates();
+      renderTable();
+    }
 
-      dateInput.value = '';
-      startHourInput.value = '10';
-      endHourInput.value = '13';
-      updateVisualRange();
-      nameInput.focus();
+    function removeCandidateDate(dateString) {
+      const state = getState();
+      state.candidateDates = state.candidateDates.filter((date) => date !== dateString);
+      state.people.forEach((person) => {
+        person.slots = person.slots.filter((slot) => !slot.startsWith(`${dateString}T`));
+      });
+      saveState(state);
+      renderCandidateDates();
+      renderTable();
+    }
+
+    addCandidateBtn.addEventListener('click', addCandidateDate);
+    candidateDateInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addCandidateDate();
+      }
     });
 
-    startHourInput.addEventListener('input', updateVisualRange);
-    endHourInput.addEventListener('input', updateVisualRange);
+    addPersonBtn.addEventListener('click', addPerson);
+    participantNameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        addPerson();
+      }
+    });
 
-    dateInput.value = new Date().toISOString().split('T')[0];
-    renderHourGrid();
-    renderEntries();
+    renderCandidateDates();
+    renderTable();
   </script>
 </body>
 </html>
