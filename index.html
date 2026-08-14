@@ -82,11 +82,16 @@
       font-weight: 600;
       border: none;
       cursor: pointer;
+      margin-right: 10px;
     }
 
     .button:hover {
       transform: translateY(-3px);
       box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    .button-group {
+      margin-top: 30px;
     }
   </style>
 </head>
@@ -95,7 +100,10 @@
     <h1>Welcome</h1>
     <p class="greeting">こんにちは 👋</p>
     <p class="farewell">さようなら</p>
-    <button class="button">Get Started</button>
+    <div class="button-group">
+      <button class="button">Get Started</button>
+      <a href="page2.html" class="button">ページ2へ</a>
+    </div>
   </div>
 </body>
 </html>
