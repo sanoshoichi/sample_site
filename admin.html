@@ -212,11 +212,13 @@
         if (isValidState(parsed)) {
           const app = { schedules: [{ id: 'default', title: 'Default', payload: parsed }], activeScheduleId: 'default' };
           migrateSlots(app);
+          normalizeAppState(app);
           return app;
         }
 
         if (parsed && Array.isArray(parsed.schedules)) {
           migrateSlots(parsed);
+          normalizeAppState(parsed);
           return parsed;
         }
       } catch (error) {
@@ -237,7 +239,12 @@
       const activeId = app.activeScheduleId;
       const sched = (app.schedules || []).find((s) => s.id === activeId);
       if (!sched) return { candidateDates: [], participantEntries: [], participantDraft: {} };
-      return sched.payload;
+      const payload = sched.payload || {};
+      return {
+        candidateDates: Array.isArray(payload.candidateDates) ? payload.candidateDates : [],
+        participantEntries: Array.isArray(payload.participantEntries) ? payload.participantEntries : [],
+        participantDraft: payload.participantDraft || {}
+      };
     }
 
     async function saveAppState(appState) {
