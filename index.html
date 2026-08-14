@@ -1,16 +1,227 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>時間調整アプリ</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main>
-    <h1>Welcome</h1>
-    <p>これはページ1です。</p>
-    <a href="page2.html">ページ2へ</a>
-  </main>
+  <div class="app-shell">
+    <main class="panel">
+      <div class="panel-header">
+        <p class="eyebrow">Schedule</p>
+        <h1>1時間単位で調整</h1>
+      </div>
+
+      <form id="scheduleForm">
+        <div class="field-group">
+          <label for="name">名前</label>
+          <input id="name" name="name" type="text" placeholder="例：山田 太郎" required />
+        </div>
+
+        <div class="field-group">
+          <label for="date">日付</label>
+          <input id="date" name="date" type="date" required />
+        </div>
+
+        <div class="field-group">
+          <label>空いている時間</label>
+          <div class="range-box">
+            <div class="range-header">
+              <span>選択中</span>
+              <strong id="selectedRangeText">未選択</strong>
+            </div>
+
+            <div class="hour-grid" id="hourGrid" aria-label="時間候補"></div>
+
+            <div class="slider-group">
+              <label for="startHour">開始</label>
+              <input id="startHour" type="range" min="9" max="20" step="1" value="10" />
+              <label for="endHour">終了</label>
+              <input id="endHour" type="range" min="10" max="21" step="1" value="13" />
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="comment">コメント</label>
+          <textarea id="comment" name="comment" rows="3" placeholder="例：午後の打ち合わせ希望です"></textarea>
+        </div>
+
+        <button type="submit">登録する</button>
+      </form>
+
+      <section class="history">
+        <div class="history-header">
+          <h2>保存済み予定</h2>
+        </div>
+        <ul id="entriesList" aria-live="polite"></ul>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'scheduleEntries';
+    const hourLabels = [];
+
+    for (let hour = 9; hour <= 21; hour++) {
+      const value = hour.toString().padStart(2, '0') + ':00';
+      hourLabels.push(value);
+    }
+
+    const form = document.getElementById('scheduleForm');
+    const nameInput = document.getElementById('name');
+    const dateInput = document.getElementById('date');
+    const commentInput = document.getElementById('comment');
+    const startHourInput = document.getElementById('startHour');
+    const endHourInput = document.getElementById('endHour');
+    const hourGrid = document.getElementById('hourGrid');
+    const selectedRangeText = document.getElementById('selectedRangeText');
+    const entriesList = document.getElementById('entriesList');
+
+    function formatHourValue(hour) {
+      return `${String(hour).padStart(2, '0')}:00`;
+    }
+
+    function getRangeText(startHour, endHour) {
+      return `${formatHourValue(startHour)} 〜 ${formatHourValue(endHour)}`;
+    }
+
+    function ensureValidRange() {
+      let start = Number(startHourInput.value);
+      let end = Number(endHourInput.value);
+
+      if (start >= end) {
+        if (document.activeElement === endHourInput) {
+          start = end - 1;
+          startHourInput.value = start;
+        } else {
+          end = start + 1;
+          endHourInput.value = end;
+        }
+      }
+
+      return { start, end };
+    }
+
+    function updateVisualRange() {
+      const { start, end } = ensureValidRange();
+      selectedRangeText.textContent = getRangeText(start, end);
+
+      const hourCells = [...hourGrid.children];
+      hourCells.forEach((cell) => {
+        const hour = Number(cell.dataset.hour);
+        const selected = hour >= start && hour < end;
+        cell.classList.toggle('selected', selected);
+      });
+    }
+
+    function renderHourGrid() {
+      hourGrid.innerHTML = '';
+
+      for (let hour = 9; hour <= 21; hour++) {
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'hour-cell';
+        cell.dataset.hour = hour;
+        cell.textContent = formatHourValue(hour);
+        cell.addEventListener('click', () => {
+          const currentStart = Number(startHourInput.value);
+          const currentEnd = Number(endHourInput.value);
+
+          if (hour >= currentStart && hour < currentEnd) {
+            startHourInput.value = hour;
+            endHourInput.value = Math.min(hour + 1, 21);
+          } else {
+            startHourInput.value = hour;
+            endHourInput.value = Math.min(hour + 2, 21);
+          }
+
+          updateVisualRange();
+        });
+        hourGrid.appendChild(cell);
+      }
+
+      updateVisualRange();
+    }
+
+    function getEntries() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }
+
+    function saveEntries(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function renderEntries() {
+      const entries = getEntries();
+      entriesList.innerHTML = '';
+
+      if (!entries.length) {
+        const empty = document.createElement('li');
+        empty.className = 'empty-state';
+        empty.textContent = 'まだ登録がありません';
+        entriesList.appendChild(empty);
+        return;
+      }
+
+      entries
+        .slice()
+        .reverse()
+        .forEach((entry) => {
+          const item = document.createElement('li');
+          item.className = 'entry-item';
+          item.innerHTML = `
+            <div class="entry-meta">
+              <strong>${entry.name}</strong>
+              <span>${entry.date}</span>
+            </div>
+            <p>${entry.comment || 'コメントなし'}</p>
+            <span class="time-tag">${getRangeText(entry.startHour, entry.endHour)}</span>
+          `;
+          entriesList.appendChild(item);
+        });
+    }
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      const startHour = Number(startHourInput.value);
+      const endHour = Number(endHourInput.value);
+      const entry = {
+        id: Date.now(),
+        name: nameInput.value.trim(),
+        date: dateInput.value,
+        startHour,
+        endHour,
+        comment: commentInput.value.trim()
+      };
+
+      if (!entry.name || !entry.date) {
+        return;
+      }
+
+      const entries = getEntries();
+      entries.push(entry);
+      saveEntries(entries);
+      renderEntries();
+      form.reset();
+
+      dateInput.value = '';
+      startHourInput.value = '10';
+      endHourInput.value = '13';
+      updateVisualRange();
+      nameInput.focus();
+    });
+
+    startHourInput.addEventListener('input', updateVisualRange);
+    endHourInput.addEventListener('input', updateVisualRange);
+
+    dateInput.value = new Date().toISOString().split('T')[0];
+    renderHourGrid();
+    renderEntries();
+  </script>
 </body>
 </html>
