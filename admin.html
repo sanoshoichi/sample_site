@@ -3,43 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>参加者ページ</title>
+  <title>管理者ページ</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="page-header">
-      <p class="eyebrow">Participant</p>
-      <h1>参加者ページ</h1>
+      <p class="eyebrow">Admin</p>
+      <h1>管理者ページ</h1>
       <nav class="page-nav">
-        <a href="admin.html">管理者ページへ</a>
+        <a href="index.html">参加者ページへ</a>
       </nav>
     </header>
 
     <section class="toolbar">
-      <label class="field" for="participantName">
-        <span>参加者名</span>
-        <div class="inline-field">
-          <input id="participantName" type="text" placeholder="例：山田 太郎" />
-          <button id="saveAvailabilityBtn" type="button">登録</button>
-        </div>
-      </label>
+      <div class="date-builder">
+        <label class="field" for="candidateDate">
+          <span>候補日を追加</span>
+          <div class="inline-field">
+            <input id="candidateDate" type="date" />
+            <button id="addCandidateBtn" type="button">追加</button>
+          </div>
+        </label>
+        <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
+      </div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
         <div>
           <p class="mini-label">候補日程</p>
-          <h2>参加可能な時間を選択</h2>
+          <h2>管理者が日時を設定</h2>
         </div>
       </div>
 
-      <div class="candidate-readonly-wrap">
-        <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
-      </div>
-
       <div class="schedule-wrap">
-        <table class="schedule-table" aria-label="予定調整表">
+        <table class="schedule-table" aria-label="候補日一覧">
           <thead id="scheduleHead"></thead>
           <tbody id="scheduleBody"></tbody>
         </table>
@@ -65,8 +64,8 @@
     const scheduleHead = document.getElementById('scheduleHead');
     const scheduleBody = document.getElementById('scheduleBody');
     const candidateDateList = document.getElementById('candidateDateList');
-    const participantNameInput = document.getElementById('participantName');
-    const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
+    const candidateDateInput = document.getElementById('candidateDate');
+    const addCandidateBtn = document.getElementById('addCandidateBtn');
 
     function deepClone(value) {
       return JSON.parse(JSON.stringify(value));
@@ -132,9 +131,21 @@
         .slice()
         .sort()
         .forEach((dateString) => {
-          const pill = document.createElement('span');
-          pill.className = 'candidate-pill readonly';
+          const pill = document.createElement('button');
+          pill.type = 'button';
+          pill.className = 'candidate-pill';
           pill.textContent = formatDate(dateString);
+
+          const removeButton = document.createElement('span');
+          removeButton.className = 'candidate-remove';
+          removeButton.textContent = '×';
+          removeButton.setAttribute('aria-label', `${dateString}を削除`);
+          removeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            removeCandidateDate(dateString);
+          });
+
+          pill.appendChild(removeButton);
           candidateDateList.appendChild(pill);
         });
     }
@@ -158,12 +169,6 @@
       scheduleHead.appendChild(row);
     }
 
-    function getCurrentParticipantSlots(name, state) {
-      const entry = state.participantEntries.find((person) => person.name === name) || { slots: [] };
-      const draft = state.participantDraft[name] || [];
-      return [...new Set([...entry.slots, ...draft])];
-    }
-
     function renderTable() {
       const state = getState();
       const slots = buildSlots(state.candidateDates);
@@ -183,49 +188,22 @@
 
       renderHeader(slots);
 
-      const activeName = participantNameInput.value.trim();
-      const rows = [...state.participantEntries];
-
-      if (activeName && !rows.some((person) => person.name === activeName)) {
-        rows.push({ name: activeName, slots: getCurrentParticipantSlots(activeName, state) });
-      }
-
-      rows.forEach((person) => {
+      state.participantEntries.forEach((person) => {
         const row = document.createElement('tr');
-        const entryName = person.name;
-        const displaySlots = getCurrentParticipantSlots(entryName, state);
-        const canEdit = activeName === entryName && activeName !== '';
 
         const nameCell = document.createElement('th');
-        nameCell.textContent = entryName;
+        nameCell.textContent = person.name;
         nameCell.className = 'person-name';
         row.appendChild(nameCell);
 
         slots.forEach((slot) => {
           const cell = document.createElement('td');
-          const selected = displaySlots.includes(slot.id);
+          const selected = person.slots.includes(slot.id);
 
           cell.className = selected ? 'slot selected' : 'slot';
-          cell.dataset.person = entryName;
-          cell.dataset.slotId = slot.id;
-          cell.setAttribute('role', 'button');
-          cell.setAttribute('tabindex', '0');
           cell.textContent = selected ? '○' : '';
-          cell.title = `${entryName} ${slot.label}`;
-
-          if (canEdit) {
-            const handleSelection = () => toggleDraftSlot(entryName, slot.id);
-            cell.addEventListener('click', handleSelection);
-            cell.addEventListener('keydown', (event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                handleSelection();
-              }
-            });
-          } else {
-            cell.style.cursor = 'default';
-          }
-
+          cell.title = `${person.name} ${slot.label}`;
+          cell.style.cursor = 'default';
           row.appendChild(cell);
         });
 
@@ -233,55 +211,44 @@
       });
     }
 
-    function toggleDraftSlot(name, slotId) {
+    function addCandidateDate() {
+      const dateString = candidateDateInput.value;
+      if (!dateString) return;
+
       const state = getState();
-      const cleanName = name.trim();
-      if (!cleanName) return;
-
-      if (!state.participantDraft[cleanName]) {
-        state.participantDraft[cleanName] = [];
-      }
-
-      const slotIndex = state.participantDraft[cleanName].indexOf(slotId);
-      if (slotIndex >= 0) {
-        state.participantDraft[cleanName].splice(slotIndex, 1);
-      } else {
-        state.participantDraft[cleanName].push(slotId);
-      }
-
-      saveState(state);
-      renderTable();
-    }
-
-    function saveAvailability() {
-      const state = getState();
-      const name = participantNameInput.value.trim();
-      if (!name) {
-        participantNameInput.focus();
+      if (state.candidateDates.includes(dateString)) {
+        candidateDateInput.value = '';
         return;
       }
 
-      const draftSlots = state.participantDraft[name] || [];
-      const entry = state.participantEntries.find((person) => person.name === name);
-
-      if (entry) {
-        entry.slots = [...new Set([...entry.slots, ...draftSlots])];
-      } else {
-        state.participantEntries.push({ name, slots: [...draftSlots] });
-      }
-
-      delete state.participantDraft[name];
+      state.candidateDates.push(dateString);
+      state.candidateDates.sort();
       saveState(state);
+      candidateDateInput.value = '';
+      renderCandidateDates();
       renderTable();
     }
 
-    saveAvailabilityBtn.addEventListener('click', saveAvailability);
-    participantNameInput.addEventListener('keydown', (event) => {
+    function removeCandidateDate(dateString) {
+      const state = getState();
+      state.candidateDates = state.candidateDates.filter((date) => date !== dateString);
+      state.participantEntries.forEach((person) => {
+        person.slots = person.slots.filter((slot) => !slot.startsWith(`${dateString}T`));
+      });
+      Object.keys(state.participantDraft || {}).forEach((name) => {
+        state.participantDraft[name] = (state.participantDraft[name] || []).filter((slot) => !slot.startsWith(`${dateString}T`));
+      });
+      saveState(state);
+      renderCandidateDates();
+      renderTable();
+    }
+
+    addCandidateBtn.addEventListener('click', addCandidateDate);
+    candidateDateInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
-        saveAvailability();
+        addCandidateDate();
       }
     });
-    participantNameInput.addEventListener('input', renderTable);
 
     renderCandidateDates();
     renderTable();

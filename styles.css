@@ -66,30 +66,18 @@ h1 {
   margin-bottom: 18px;
 }
 
-.role-switch {
-  display: inline-flex;
-  gap: 10px;
-  margin-bottom: 18px;
+.page-nav {
+  margin-top: 12px;
 }
 
-.role-btn {
-  border: 1px solid rgba(212, 165, 87, 0.24);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--muted);
-  padding: 10px 18px;
+.page-nav a {
+  color: var(--gold);
+  text-decoration: none;
   font-weight: 700;
-  cursor: pointer;
 }
 
-.role-btn.active {
-  background: linear-gradient(135deg, var(--gold), var(--gold-strong));
-  color: #1d1710;
-  border-color: transparent;
-}
-
-.hidden {
-  display: none !important;
+.candidate-readonly-wrap {
+  margin-bottom: 16px;
 }
 
 .date-builder {
@@ -151,6 +139,10 @@ h1 {
   border: 1px solid rgba(212, 165, 87, 0.2);
   color: var(--text);
   cursor: pointer;
+}
+
+.candidate-pill.readonly {
+  cursor: default;
 }
 
 .candidate-remove {
