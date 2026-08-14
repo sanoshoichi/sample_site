@@ -185,6 +185,19 @@
       }
     }
 
+    function normalizeAppState(app) {
+      if (!app) return app;
+      if (!Array.isArray(app.schedules) || !app.schedules.length) {
+        app.activeScheduleId = null;
+        return app;
+      }
+      const ids = (app.schedules || []).map(s => s.id);
+      if (!app.activeScheduleId || !ids.includes(app.activeScheduleId)) {
+        app.activeScheduleId = ids[0] || null;
+      }
+      return app;
+    }
+
     function getEmptyAppState() {
       return { schedules: [], activeScheduleId: null };
     }
@@ -305,7 +318,8 @@
           activeScheduleId: (rows && rows[0] && rows[0].id) || null
         };
         migrateSlots(app);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
+        normalizeAppState(app);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
           // mark that server supports per-schedule table
           SERVER_HAS_SCHEDULES = true;
         return app;
@@ -360,6 +374,8 @@
         // accept either legacy single-payload state or app-level state with schedules
         if (remoteState) {
           if (isValidState(remoteState) || (remoteState.schedules && Array.isArray(remoteState.schedules))) {
+            migrateSlots(remoteState);
+            normalizeAppState(remoteState);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteState));
           }
         }
