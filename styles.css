@@ -324,6 +324,24 @@ h2 {
   vertical-align: middle;
 }
 
+/* Marked slot colors (pale) */
+.slot.mark-circle {
+  background: rgba(144, 238, 144, 0.14); /* pale lightgreen */
+  color: rgba(20,20,20,0.95);
+}
+.slot.mark-triangle {
+  background: rgba(255, 236, 179, 0.12); /* pale light yellow */
+  color: rgba(20,20,20,0.95);
+}
+.slot.mark-cross {
+  background: rgba(255, 182, 193, 0.10); /* pale light red/pink */
+  color: rgba(20,20,20,0.95);
+}
+
+.slot.selected {
+  font-weight: 700;
+}
+
 .schedule-table thead th {
   position: sticky;
   top: 0;

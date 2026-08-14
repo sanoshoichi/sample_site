@@ -566,7 +566,7 @@
             const canEdit = activeEditTargets.has(userName);
             const mark = getSlotMark(userName, slot.id, getAppState());
 
-            cell.className = mark ? 'slot selected' : 'slot';
+            cell.className = mark ? `slot selected mark-${mark}` : 'slot';
             cell.dataset.person = userName;
             cell.dataset.slotId = slot.id;
             cell.setAttribute('role', 'button');

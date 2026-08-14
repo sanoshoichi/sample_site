@@ -407,7 +407,8 @@
             const found = (person.slots || []).find((s) => (typeof s === 'string' ? s === slot.id : (s && s.id === slot.id)));
             const selected = !!found;
 
-            cell.className = selected ? 'slot selected' : 'slot';
+            const markClass = (found && typeof found === 'object' && found.mark) ? ` mark-${found.mark}` : '';
+            cell.className = (selected ? 'slot selected' : 'slot') + markClass;
             // if object exists and has mark, display corresponding symbol
             if (found && typeof found === 'object' && found.mark) {
               const map = { circle: '○', triangle: '△', cross: '×' };
