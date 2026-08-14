@@ -471,6 +471,13 @@
     }
 
     function renderCalendar() {
+      const registerBtn = document.getElementById('registerSelectedDatesBtn');
+      const clearBtn = document.getElementById('clearSelectedDatesBtn');
+      const deleteBtn = document.getElementById('deleteScheduleBtn');
+      if (registerBtn) registerBtn.disabled = !hasActiveSchedule();
+      if (clearBtn) clearBtn.disabled = !hasActiveSchedule();
+      if (deleteBtn) deleteBtn.disabled = !hasActiveSchedule();
+
       if (!hasActiveSchedule()) {
         calendarLabel.textContent = '予定を選択してください';
         calendarGrid.innerHTML = '';
@@ -536,6 +543,8 @@
     }
 
     function registerSelectedDates() {
+      if (!hasActiveSchedule()) return;
+
       const state = getState();
       const newDates = [...new Set(selectedDates.filter((dateKey) => !state.candidateDates.includes(dateKey)))];
 
