@@ -66,6 +66,32 @@ h1 {
   margin-bottom: 18px;
 }
 
+.role-switch {
+  display: inline-flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.role-btn {
+  border: 1px solid rgba(212, 165, 87, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  padding: 10px 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.role-btn.active {
+  background: linear-gradient(135deg, var(--gold), var(--gold-strong));
+  color: #1d1710;
+  border-color: transparent;
+}
+
+.hidden {
+  display: none !important;
+}
+
 .date-builder {
   display: grid;
   gap: 12px;

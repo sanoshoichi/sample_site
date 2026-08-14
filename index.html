@@ -13,7 +13,12 @@
       <h1>日程調整表</h1>
     </header>
 
-    <section class="toolbar">
+    <section class="role-switch" aria-label="役割切り替え">
+      <button type="button" class="role-btn active" data-role="admin">管理者</button>
+      <button type="button" class="role-btn" data-role="participant">参加者</button>
+    </section>
+
+    <section class="toolbar admin-panel" id="adminPanel">
       <div class="date-builder">
         <label class="field" for="candidateDate">
           <span>候補日を追加</span>
@@ -24,12 +29,14 @@
         </label>
         <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
       </div>
+    </section>
 
+    <section class="toolbar participant-panel hidden" id="participantPanel">
       <label class="field" for="participantName">
-        <span>参加者を追加</span>
+        <span>参加者名</span>
         <div class="inline-field">
           <input id="participantName" type="text" placeholder="例：山田 太郎" />
-          <button id="addPersonBtn" type="button">追加</button>
+          <button id="saveAvailabilityBtn" type="button">登録</button>
         </div>
       </label>
     </section>
@@ -38,7 +45,7 @@
       <div class="panel-head">
         <div>
           <p class="mini-label">候補日程</p>
-          <h2>都合の良い日時を選択</h2>
+          <h2 id="panelTitle">管理者が候補日を追加</h2>
         </div>
       </div>
 
@@ -57,12 +64,14 @@
     const HOUR_END = 20;
 
     const defaultState = {
+      role: 'admin',
       candidateDates: ['2026-08-15', '2026-08-17', '2026-08-20'],
-      people: [
+      participantEntries: [
         { name: '山田', slots: ['2026-08-15T10:00:00', '2026-08-15T11:00:00', '2026-08-17T13:00:00'] },
         { name: '佐藤', slots: ['2026-08-15T09:00:00', '2026-08-17T14:00:00', '2026-08-20T15:00:00'] },
         { name: '鈴木', slots: ['2026-08-17T10:00:00', '2026-08-17T11:00:00', '2026-08-20T12:00:00'] }
-      ]
+      ],
+      participantDraft: {}
     };
 
     const scheduleHead = document.getElementById('scheduleHead');
@@ -70,8 +79,12 @@
     const candidateDateList = document.getElementById('candidateDateList');
     const participantNameInput = document.getElementById('participantName');
     const candidateDateInput = document.getElementById('candidateDate');
-    const addPersonBtn = document.getElementById('addPersonBtn');
     const addCandidateBtn = document.getElementById('addCandidateBtn');
+    const saveAvailabilityBtn = document.getElementById('saveAvailabilityBtn');
+    const panelTitle = document.getElementById('panelTitle');
+    const adminPanel = document.getElementById('adminPanel');
+    const participantPanel = document.getElementById('participantPanel');
+    const roleButtons = document.querySelectorAll('.role-btn');
 
     function deepClone(value) {
       return JSON.parse(JSON.stringify(value));
@@ -83,7 +96,7 @@
 
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.candidateDates) && Array.isArray(parsed.people)) {
+        if (parsed && Array.isArray(parsed.candidateDates) && Array.isArray(parsed.participantEntries)) {
           return parsed;
         }
       } catch (error) {
@@ -119,6 +132,18 @@
         });
 
       return slots;
+    }
+
+    function renderRoleUI() {
+      const state = getState();
+      const isAdmin = state.role === 'admin';
+
+      adminPanel.classList.toggle('hidden', !isAdmin);
+      participantPanel.classList.toggle('hidden', isAdmin);
+      roleButtons.forEach((button) => {
+        button.classList.toggle('active', button.dataset.role === state.role);
+      });
+      panelTitle.textContent = isAdmin ? '管理者が候補日を追加' : '参加可能な時間を選択して登録';
     }
 
     function renderCandidateDates() {
@@ -179,6 +204,12 @@
       scheduleHead.appendChild(row);
     }
 
+    function getDisplaySlotsForName(name, state) {
+      const entry = state.participantEntries.find((person) => person.name === name) || { slots: [] };
+      const draft = state.participantDraft[name] || [];
+      return [...new Set([...entry.slots, ...draft])];
+    }
+
     function renderTable() {
       const state = getState();
       const slots = buildSlots(state.candidateDates);
@@ -198,34 +229,50 @@
 
       renderHeader(slots);
 
-      state.people.forEach((person) => {
+      const activeName = participantNameInput.value.trim();
+      const rows = state.role === 'participant'
+        ? [...state.participantEntries]
+        : [...state.participantEntries];
+
+      if (state.role === 'participant' && activeName && !rows.some((person) => person.name === activeName)) {
+        rows.push({ name: activeName, slots: getDisplaySlotsForName(activeName, state) });
+      }
+
+      rows.forEach((person) => {
         const row = document.createElement('tr');
+        const entryName = person.name;
+        const displaySlots = getDisplaySlotsForName(entryName, state);
+        const canEdit = state.role === 'participant' && activeName === entryName && activeName !== '';
 
         const nameCell = document.createElement('th');
-        nameCell.textContent = person.name;
+        nameCell.textContent = entryName;
         nameCell.className = 'person-name';
         row.appendChild(nameCell);
 
         slots.forEach((slot) => {
           const cell = document.createElement('td');
-          const selected = person.slots.includes(slot.id);
+          const selected = displaySlots.includes(slot.id);
 
           cell.className = selected ? 'slot selected' : 'slot';
-          cell.dataset.person = person.name;
+          cell.dataset.person = entryName;
           cell.dataset.slotId = slot.id;
           cell.setAttribute('role', 'button');
           cell.setAttribute('tabindex', '0');
           cell.textContent = selected ? '○' : '';
-          cell.title = `${person.name} ${slot.label}`;
+          cell.title = `${entryName} ${slot.label}`;
 
-          const handleSelection = () => toggleSlot(person.name, slot.id);
-          cell.addEventListener('click', handleSelection);
-          cell.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              handleSelection();
-            }
-          });
+          if (canEdit) {
+            const handleSelection = () => toggleDraftSlot(entryName, slot.id);
+            cell.addEventListener('click', handleSelection);
+            cell.addEventListener('keydown', (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleSelection();
+              }
+            });
+          } else {
+            cell.style.cursor = 'default';
+          }
 
           row.appendChild(cell);
         });
@@ -234,38 +281,46 @@
       });
     }
 
-    function toggleSlot(personName, slotId) {
+    function toggleDraftSlot(name, slotId) {
       const state = getState();
-      const person = state.people.find((entry) => entry.name === personName);
-      if (!person) return;
+      const cleanName = name.trim();
+      if (!cleanName) return;
 
-      const slotIndex = person.slots.indexOf(slotId);
+      if (!state.participantDraft[cleanName]) {
+        state.participantDraft[cleanName] = [];
+      }
+
+      const slotIndex = state.participantDraft[cleanName].indexOf(slotId);
       if (slotIndex >= 0) {
-        person.slots.splice(slotIndex, 1);
+        state.participantDraft[cleanName].splice(slotIndex, 1);
       } else {
-        person.slots.push(slotId);
+        state.participantDraft[cleanName].push(slotId);
       }
 
       saveState(state);
       renderTable();
     }
 
-    function addPerson() {
-      const value = participantNameInput.value.trim();
-      if (!value) return;
-
+    function saveAvailability() {
       const state = getState();
-      if (state.people.some((person) => person.name === value)) {
-        participantNameInput.value = '';
+      const name = participantNameInput.value.trim();
+      if (!name) {
         participantNameInput.focus();
         return;
       }
 
-      state.people.push({ name: value, slots: [] });
+      const draftSlots = state.participantDraft[name] || [];
+      const entry = state.participantEntries.find((person) => person.name === name);
+
+      if (entry) {
+        entry.slots = [...new Set([...entry.slots, ...draftSlots])];
+      } else {
+        state.participantEntries.push({ name, slots: [...draftSlots] });
+      }
+
+      delete state.participantDraft[name];
       saveState(state);
-      participantNameInput.value = '';
       renderTable();
-      participantNameInput.focus();
     }
 
     function addCandidateDate() {
@@ -290,13 +345,26 @@
     function removeCandidateDate(dateString) {
       const state = getState();
       state.candidateDates = state.candidateDates.filter((date) => date !== dateString);
-      state.people.forEach((person) => {
+      state.participantEntries.forEach((person) => {
         person.slots = person.slots.filter((slot) => !slot.startsWith(`${dateString}T`));
+      });
+      Object.keys(state.participantDraft).forEach((name) => {
+        state.participantDraft[name] = (state.participantDraft[name] || []).filter((slot) => !slot.startsWith(`${dateString}T`));
       });
       saveState(state);
       renderCandidateDates();
       renderTable();
     }
+
+    roleButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const state = getState();
+        state.role = button.dataset.role;
+        saveState(state);
+        renderRoleUI();
+        renderTable();
+      });
+    });
 
     addCandidateBtn.addEventListener('click', addCandidateDate);
     candidateDateInput.addEventListener('keydown', (event) => {
@@ -305,13 +373,15 @@
       }
     });
 
-    addPersonBtn.addEventListener('click', addPerson);
+    saveAvailabilityBtn.addEventListener('click', saveAvailability);
     participantNameInput.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
-        addPerson();
+        saveAvailability();
       }
     });
+    participantNameInput.addEventListener('input', renderTable);
 
+    renderRoleUI();
     renderCandidateDates();
     renderTable();
   </script>
