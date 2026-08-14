@@ -28,6 +28,13 @@
         <div id="candidateDateList" class="candidate-list" aria-live="polite"></div>
       </div>
 
+      <div class="schedule-controls" style="margin:10px 0; display:flex; gap:10px; align-items:center;">
+        <label style="color:var(--muted);">予定切替</label>
+        <select id="scheduleSelect"></select>
+        <button id="newScheduleBtn" type="button" class="nav-button">新規予定</button>
+        <button id="deleteScheduleBtn" type="button" class="secondary-btn">削除</button>
+      </div>
+
       <div class="participant-actions">
         <label class="field" for="participantName">
           <span>参加者名</span>
@@ -91,63 +98,199 @@
       return value && Array.isArray(value.candidateDates) && Array.isArray(value.participantEntries);
     }
 
-    function getState() {
+    function getAppState() {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return deepClone(defaultState);
+      if (!raw) return deepClone({ schedules: [{ id: 'default', title: 'Default', payload: deepClone(defaultState) }], activeScheduleId: 'default' });
 
       try {
         const parsed = JSON.parse(raw);
+        // legacy payload -> wrap
         if (isValidState(parsed)) {
-          // migrate old slot string arrays to object form {id, mark}
+          const app = { schedules: [{ id: 'default', title: 'Default', payload: parsed }], activeScheduleId: 'default' };
+          migrateSlots(app);
+          return app;
+        }
+
+        if (parsed && Array.isArray(parsed.schedules)) {
           migrateSlots(parsed);
           return parsed;
         }
       } catch (error) {
-        // Ignore invalid state and fall back to defaults.
+        // fall through
       }
 
-      return deepClone(defaultState);
+      return deepClone({ schedules: [{ id: 'default', title: 'Default', payload: deepClone(defaultState) }], activeScheduleId: 'default' });
     }
 
-    function migrateSlots(state) {
-      if (!state) return;
-
-      // participantEntries: convert string slots to {id, mark: 'circle'}
-      state.participantEntries = (state.participantEntries || []).map((person) => {
-        const rawSlots = person.slots || [];
-        const normalized = rawSlots.map((s) => {
-          if (!s) return null;
-          if (typeof s === 'string') return { id: s, mark: 'circle' };
-          if (typeof s === 'object' && s.id) return s;
-          return null;
-        }).filter(Boolean);
-        return { ...person, slots: normalized };
-      });
-
-      // participantDraft: same conversion
-      const drafts = state.participantDraft || {};
-      Object.keys(drafts).forEach((name) => {
-        const arr = drafts[name] || [];
-        drafts[name] = arr.map((s) => {
-          if (!s) return null;
-          if (typeof s === 'string') return { id: s, mark: 'circle' };
-          if (typeof s === 'object' && s.id) return s;
-          return null;
-        }).filter(Boolean);
-      });
-      state.participantDraft = drafts;
+    function getState() {
+      const app = getAppState();
+      const activeId = app.activeScheduleId || (app.schedules[0] && app.schedules[0].id);
+      const sched = (app.schedules || []).find((s) => s.id === activeId) || (app.schedules[0] || { payload: deepClone(defaultState) });
+      return sched.payload;
     }
 
-    function getSlotMark(name, slotId, state) {
-      // If in edit for this name, prefer draft
-      const draft = (state.participantDraft && state.participantDraft[name]) || [];
+    async function saveAppState(appState) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+
+      if (!SUPABASE_URL || SUPABASE_URL.includes('<Project URL>') || !SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('<anon public key>')) {
+        return;
+      }
+
+      try {
+        const checkResponse = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=id&id=eq.1`, {
+          headers: getSupabaseHeaders(),
+          cache: 'no-store'
+        });
+
+        if (!checkResponse.ok) {
+          return;
+        }
+
+        const existingRows = await checkResponse.json();
+        const hasRow = Array.isArray(existingRows) && existingRows.some((row) => row.id === 1);
+
+        const url = hasRow ? `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.1` : `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`;
+        const method = hasRow ? 'PATCH' : 'POST';
+        const body = hasRow ? JSON.stringify({ payload: appState }) : JSON.stringify({ id: 1, payload: appState });
+
+        await fetch(url, {
+          method,
+          headers: {
+            ...getSupabaseHeaders(),
+            Prefer: hasRow ? 'resolution=merge-duplicates' : 'resolution=merge-duplicates'
+          },
+          body
+        });
+      } catch (error) {
+        // Ignore network issues and keep local fallback behavior.
+      }
+    }
+
+    async function saveState(statePayload) {
+      const app = getAppState();
+      const activeId = app.activeScheduleId || (app.schedules[0] && app.schedules[0].id);
+      let sched = (app.schedules || []).find((s) => s.id === activeId);
+      if (!sched) {
+        sched = { id: activeId || `s_${Date.now()}`, title: activeId || 'New', payload: statePayload };
+        app.schedules = app.schedules || [];
+        app.schedules.push(sched);
+        app.activeScheduleId = sched.id;
+      } else {
+        sched.payload = statePayload;
+      }
+
+      await saveAppState(app);
+    }
+
+    function migrateSlots(appState) {
+      if (!appState) return;
+
+      // If this looks like a legacy schedule payload (candidateDates present), wrap it
+      if (isValidState(appState)) {
+        // legacy single-payload -> convert to app shape
+        const payload = appState;
+        appState = {
+          schedules: [{ id: 'default', title: 'Default', payload }],
+          activeScheduleId: 'default'
+        };
+      }
+
+      if (Array.isArray(appState.schedules)) {
+        appState.schedules = appState.schedules.map((sched) => {
+          const state = sched.payload || { candidateDates: [], participantEntries: [], participantDraft: {} };
+
+          state.participantEntries = (state.participantEntries || []).map((person) => {
+            const rawSlots = person.slots || [];
+            const normalized = rawSlots.map((s) => {
+              if (!s) return null;
+              if (typeof s === 'string') return { id: s, mark: 'circle' };
+              if (typeof s === 'object' && s.id) return s;
+              return null;
+            }).filter(Boolean);
+            return { ...person, slots: normalized };
+          });
+
+          const drafts = state.participantDraft || {};
+          Object.keys(drafts).forEach((name) => {
+            const arr = drafts[name] || [];
+            drafts[name] = arr.map((s) => {
+              if (!s) return null;
+              if (typeof s === 'string') return { id: s, mark: 'circle' };
+              if (typeof s === 'object' && s.id) return s;
+              return null;
+            }).filter(Boolean);
+          });
+
+          state.participantDraft = drafts;
+          return { ...sched, payload: state };
+        });
+      }
+    }
+
+    function getSlotMark(name, slotId, appState) {
+      const state = appState && appState.schedules ? (appState.schedules.find(s => s.id === appState.activeScheduleId) || {}).payload : null;
+      const draft = (state && state.participantDraft && state.participantDraft[name]) || [];
       const inDraft = draft.find((s) => s.id === slotId);
       if (inDraft) return inDraft.mark || null;
 
-      const entry = (state.participantEntries || []).find((p) => p.name === name);
+      const entry = (state && state.participantEntries || []).find((p) => p.name === name);
       if (!entry) return null;
       const found = (entry.slots || []).find((s) => s.id === slotId);
       return found ? (found.mark || null) : null;
+    }
+
+    // Schedule selector helpers
+    function renderScheduleSelector() {
+      const select = document.getElementById('scheduleSelect');
+      if (!select) return;
+      const app = getAppState();
+      select.innerHTML = '';
+      (app.schedules || []).forEach((s) => {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.title || s.id;
+        if (app.activeScheduleId === s.id) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function createNewSchedule() {
+      const title = window.prompt('新しい予定のタイトルを入力してください');
+      if (!title) return;
+      const app = getAppState();
+      const id = `s_${Date.now()}`;
+      const payload = deepClone(defaultState);
+      app.schedules = app.schedules || [];
+      app.schedules.push({ id, title, payload });
+      app.activeScheduleId = id;
+      saveAppState(app).then(() => {
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderTable();
+      });
+    }
+
+    function deleteCurrentSchedule() {
+      const app = getAppState();
+      const id = app.activeScheduleId;
+      if (!id) return;
+      const sched = (app.schedules || []).find(s => s.id === id);
+      if (!sched) return;
+      const ok = window.confirm(`${sched.title || sched.id} を削除してもよろしいですか？`);
+      if (!ok) return;
+      app.schedules = (app.schedules || []).filter(s => s.id !== id);
+      if (!app.schedules.length) {
+        const newid = 'default';
+        app.schedules.push({ id: newid, title: 'Default', payload: deepClone(defaultState) });
+        app.activeScheduleId = newid;
+      } else {
+        app.activeScheduleId = app.schedules[0].id;
+      }
+      saveAppState(app).then(() => {
+        renderScheduleSelector();
+        renderCandidateDates();
+        renderTable();
+      });
     }
 
     function getSupabaseHeaders() {
@@ -421,7 +564,7 @@
           users.forEach((userName) => {
             const cell = document.createElement('td');
             const canEdit = activeEditTargets.has(userName);
-            const mark = getSlotMark(userName, slot.id, state);
+            const mark = getSlotMark(userName, slot.id, getAppState());
 
             cell.className = mark ? 'slot selected' : 'slot';
             cell.dataset.person = userName;
@@ -532,6 +675,18 @@
     participantNameInput.value = '';
     updateActionButtonState();
     syncStateFromServer();
+    // wire schedule selector
+    document.getElementById('newScheduleBtn').addEventListener('click', createNewSchedule);
+    document.getElementById('deleteScheduleBtn').addEventListener('click', deleteCurrentSchedule);
+    document.getElementById('scheduleSelect').addEventListener('change', (e) => {
+      const app = getAppState();
+      app.activeScheduleId = e.target.value;
+      saveAppState(app).then(() => {
+        renderCandidateDates();
+        renderTable();
+      });
+    });
+    renderScheduleSelector();
     renderCandidateDates();
     renderTable();
   </script>
