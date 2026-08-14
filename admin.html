@@ -91,6 +91,11 @@
 
     function checkAdminAccess() {
       try {
+        // Allow opening the page directly from file:// (e.g. VS Code editor) for development convenience
+        if (typeof location !== 'undefined' && location.protocol === 'file:') {
+          sessionStorage.setItem('isAdmin', '1');
+          return true;
+        }
         const params = new URLSearchParams(window.location.search);
         const token = params.get('admin_token');
         if (token && token === ADMIN_TOKEN) {
